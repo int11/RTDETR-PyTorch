@@ -1,0 +1,23 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+            "type": "shell",
+            "label": "c++ build",
+            "command": "g++",
+            "args": [
+                "-g",
+                "${file}", // 여기에 소스 파일의 경로를 입력하세요
+                "-o",
+                "${fileBasename}", // 여기에 출력 파일의 경로를 입력하세요
+                "-I/usr/include/python3.10",
+                "-I/home/injea/lijnn/.venv/lib/python3.10/site-packages/numpy/core/include",
+                "-I/usr/local/cuda/include/"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+	]
+}
