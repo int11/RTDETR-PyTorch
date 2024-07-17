@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 import random 
 import numpy as np 
-
+from rtdetr_pytorch.approximation.main import print_shape
 from src.core import register
 
 
@@ -29,9 +29,16 @@ class RTDETR(nn.Module):
         if self.multi_scale and self.training:
             sz = np.random.choice(self.multi_scale)
             x = F.interpolate(x, size=[sz, sz])
-            
+
+        if print_shape: print(f"input image shape: {x.shape}")
+
         x = self.backbone(x)
-        x = self.encoder(x)        
+        if print_shape: print("backbone output", [i.shape for i in x])
+
+        x = self.encoder(x)
+        if print_shape: print("encoder output", [i.shape for i in x])
+
+        
         x = self.decoder(x, targets)
 
         return x

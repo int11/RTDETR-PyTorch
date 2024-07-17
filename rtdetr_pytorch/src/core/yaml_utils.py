@@ -76,6 +76,7 @@ def create(type_or_name, **kwargs):
     name = type_or_name if isinstance(type_or_name, str) else type_or_name.__name__
 
     if name in GLOBAL_CONFIG:
+        # 딕셔너리 객체 인지 확인
         if hasattr(GLOBAL_CONFIG[name], '__dict__'):
             return GLOBAL_CONFIG[name]
     else:
