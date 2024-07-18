@@ -30,7 +30,8 @@ class GenSolver(DetSolver):
                 samples = samples.to(device)
                 targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-                outputs = model(samples)
+                with save_counting():
+                    outputs = model(samples)
 
         
 

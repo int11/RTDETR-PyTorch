@@ -31,15 +31,10 @@ class RTDETR(nn.Module):
             sz = np.random.choice(self.multi_scale)
             x = F.interpolate(x, size=[sz, sz])
 
-        save(x)
-        vprint(f"input image",x)
-
         x = self.backbone(x)
-        vprint("backbone output", x)
-
+        save(x, 'backbone output')
         x = self.encoder(x)
-        vprint("encoder output", x)
-
+        save(x, 'encoder output')
         x = self.decoder(x, targets)
 
         return x

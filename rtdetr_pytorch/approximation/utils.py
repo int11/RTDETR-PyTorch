@@ -7,9 +7,10 @@ import torch
 class Setting:
     print_shape = False
     save_variable = False
-    dirs = 'dataset/hiddenvec'
+    save_dir = 'dataset/hiddenvec'
+    count = 0
 
-def vprint(name, variable):
+def vprint(variable, name):
     """
     if print_shape is True, print the shape of the variable
     """
@@ -20,13 +21,16 @@ def vprint(name, variable):
             print(f"{name} shape: {variable.shape}")
 
 
-def save(variable):
-    if Setting.save_variable:
-        if not os.path.exists(Setting.dirs):
-            os.makedirs(Setting.dirs)
+def save(variable, name):
+    temp_dirs = os.path.join(Setting.save_dir, name)
 
-        print(f'saving {variable.shape}')
-        torch.save(variable, 'dataset/hiddenvec/variable.pt')
+    if Setting.save_variable:
+        if not os.path.exists(temp_dirs):
+            os.makedirs(temp_dirs)
+
+        vprint(variable, name)
+        
+        torch.save(variable, f'{os.path.join(temp_dirs, str(Setting.count))}.pt')
         print(f'saved')
 
 @contextlib.contextmanager
@@ -39,9 +43,17 @@ def saving():
         # do something
         # The save function in it save all variables.
     """
-    old_value = Setting.save_variable
-    Setting.save_variable = True
     try:
+        old_value = Setting.save_variable
+        Setting.save_variable = True
         yield
     finally:
         Setting.save_variable = old_value
+
+@contextlib.contextmanager
+def save_counting():
+    try:
+        yield
+    finally:
+        Setting.count += 1
+        pass
