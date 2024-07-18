@@ -1,25 +1,28 @@
-
 import os 
-import sys 
+import sys
+
+import torch 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 import src.misc.dist as dist 
 from src.core import YAMLConfig 
-from src.solver import TASKS
 from src.solver.det_solver import DetSolver
-import rtdetr_pytorch.approximation.utils as utils
 
-class GenDataset(DetSolver):
-    save = False
+from rtdetr_pytorch.approximation.utils import *
+
+
+class GenSolver(DetSolver):
     def __init__(self, cfg):
         super().__init__(cfg)
-
+        
+    @torch.no_grad()
     def gen(self):
-        with utils.saveing():
+        with saving():
             self.eval()
 
             model = self.ema.module if self.ema else self.model
 
             criterion, data_loader, device = self.criterion, self.val_dataloader, self.device
+            data_loader.shuffle = False
             model.eval()
             criterion.eval()
 
@@ -28,11 +31,11 @@ class GenDataset(DetSolver):
                 targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
                 outputs = model(samples)
-                print(outputs['pred_logits'].shape, outputs['pred_boxes'].shape)
 
+        
 
 if __name__ == '__main__':
-    utils.print_shape = True
+    Setting.print_shape = False
     #분산 프로세스 초기화
     dist.init_distributed()
 
@@ -51,7 +54,7 @@ if __name__ == '__main__':
             tuning=tuning
         )
     
-    GenDataset(cfg).gen()
+    GenSolver(cfg).gen()
 
     
 
