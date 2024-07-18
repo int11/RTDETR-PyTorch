@@ -3,12 +3,27 @@ import os
 
 import torch
 
-
 class Setting:
     print_shape = False
     save_variable = False
     save_dir = 'dataset/hiddenvec'
     count = 0
+
+@contextlib.contextmanager
+def using_config(name, value):
+    
+    try:
+        old_value = getattr(Setting, name)
+        setattr(Setting, name, value)
+        yield
+    finally:
+        setattr(Setting, name, old_value)
+
+def saving():
+    return using_config('save_variable', True)
+
+def printing():
+    return using_config('print_shape', True)
 
 def vprint(variable, name):
     """
@@ -28,27 +43,10 @@ def save(variable, name):
         if not os.path.exists(temp_dirs):
             os.makedirs(temp_dirs)
 
-        vprint(variable, name)
-        
+        print(f'iteration : {Setting.count} saveing...', end=' ')
+        with printing(): vprint(variable, name)
+    
         torch.save(variable, f'{os.path.join(temp_dirs, str(Setting.count))}.pt')
-        print(f'saved')
-
-@contextlib.contextmanager
-def saving():
-    """
-    this function is used to save the variable with python "with" statement
-    example:
-
-    with saving():
-        # do something
-        # The save function in it save all variables.
-    """
-    try:
-        old_value = Setting.save_variable
-        Setting.save_variable = True
-        yield
-    finally:
-        Setting.save_variable = old_value
 
 @contextlib.contextmanager
 def save_counting():
