@@ -7,7 +7,7 @@ class Setting:
     print_shape = False
     save_variable = False
     save_dir = 'dataset/hiddenvec'
-    count = 0
+    index = []
 
 @contextlib.contextmanager
 def using_config(name, value):
@@ -19,7 +19,8 @@ def using_config(name, value):
     finally:
         setattr(Setting, name, old_value)
 
-def saving():
+def saving(index):
+    Setting.index = index
     return using_config('save_variable', True)
 
 def printing():
@@ -43,15 +44,10 @@ def save(variable, name):
         if not os.path.exists(temp_dirs):
             os.makedirs(temp_dirs)
 
-        print(f'iteration : {Setting.count} saveing...', end=' ')
+        print('Saving... ', end=' ')
         with printing(): vprint(variable, name)
-    
-        torch.save(variable, f'{os.path.join(temp_dirs, str(Setting.count))}.pt')
+        
+        for i in range(len(Setting.index)):
+            a = [e[i] for e in variable]
 
-@contextlib.contextmanager
-def save_counting():
-    try:
-        yield
-    finally:
-        Setting.count += 1
-        pass
+            torch.save(a, f'{os.path.join(temp_dirs, str(Setting.index[i]))}.pt')

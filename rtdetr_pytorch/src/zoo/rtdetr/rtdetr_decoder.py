@@ -518,7 +518,7 @@ class RTDETRTransformer(nn.Module):
     def forward(self, feats, targets=None):
 
         # input projection and embedding
-        (memory, spatial_shapes, level_start_index) = self._get_encoder_input(feats)
+        (memory, spatial_shapes, level_start_index) = self._get_encoder_input(feats) # flatten 
         
         # prepare denoising training
         if self.training and self.num_denoising > 0:
@@ -533,6 +533,7 @@ class RTDETRTransformer(nn.Module):
         else:
             denoising_class, denoising_bbox_unact, attn_mask, dn_meta = None, None, None, None
 
+        #query selectioon
         target, init_ref_points_unact, enc_topk_bboxes, enc_topk_logits = \
             self._get_decoder_input(memory, spatial_shapes, denoising_class, denoising_bbox_unact)
 

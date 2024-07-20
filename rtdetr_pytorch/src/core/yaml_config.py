@@ -82,6 +82,7 @@ class YAMLConfig(BaseConfig):
         if self._train_dataloader is None and 'train_dataloader' in self.yaml_cfg:
             merge_config(self.yaml_cfg)
             self._train_dataloader = create('train_dataloader')
+            # dataloader 정의된후 shuffle 변경해도 의미없음... 왜있는거지?
             self._train_dataloader.shuffle = self.yaml_cfg['train_dataloader'].get('shuffle', False)
 
         return self._train_dataloader
@@ -91,6 +92,7 @@ class YAMLConfig(BaseConfig):
         if self._val_dataloader is None and 'val_dataloader' in self.yaml_cfg:
             merge_config(self.yaml_cfg)
             self._val_dataloader = create('val_dataloader')
+            # dataloader 정의된후 shuffle 변경해도 의미없음... 왜있는거지?
             self._val_dataloader.shuffle = self.yaml_cfg['val_dataloader'].get('shuffle', False)
 
         return self._val_dataloader
