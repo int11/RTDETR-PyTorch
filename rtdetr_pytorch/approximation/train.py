@@ -1,57 +1,98 @@
-import os
-import torch
+import os 
+import sys
+
+import torch 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from src.data.dataloader import DataLoader
+import src.misc.dist as dist 
+from src.core import YAMLConfig 
+from src.solver.det_solver import DetSolver
 import torch.nn as nn
-import torch.optim as optim
+from rtdetr_pytorch.approximation.utils import *
 
-# 1. 데이터 준비
-# 임의의 데이터 생성, 실제 사용 시 적절한 데이터로 대체
-import torch.utils.data as data
+class CustomModule(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(CustomModule, self).__init__()
+        # input_size와 output_size는 flat한 텐서의 차원을 기반으로 합니다.
+        self.linear = [self.mklayer(input_size[i], output_size[i]) for i in range(3)]
 
-class CustomDataset(data.Dataset):
-    def __init__(self, backbone_folder, encoder_folder):
-        self.backbone_folder = backbone_folder
-        self.encoder_folder = encoder_folder
 
-    def __getitem__(self, index):
-        backbone_file = f"{self.backbone_folder}/backbone output/{index}.pt"
-        encoder_file = f"{self.encoder_folder}/encoder output/{index}.pt"
-        backbone_output = torch.load(backbone_file)
-        encoder_output = torch.load(encoder_file)
-        return backbone_output, encoder_output
+    def mklayer(self, input_size, output_size):
+        layer = nn.Sequential(
+            nn.Linear(input_size, output_size),
+            nn.ReLU()
+        )
+        return layer
+    
+    def forward(self, x1, x2, x3):
+        # 각 텐서에 대해 nn.Linear 레이어 적용
+        x1_out = self.linear[0](x1)
+        x2_out = self.linear[1](x2)
+        x3_out = self.linear[2](x3)
 
-    def __len__(self):
-        # Assuming the number of files in the folders are the same
-        return len(os.listdir(self.backbone_folder))
+        return x1_out, x2_out, x3_out
+    
+class GenSolver(DetSolver):
+    def __init__(self, cfg):
+        super().__init__(cfg)
 
-backbone_folder = "dataset/hiddenvec/backbone_output"
-encoder_folder = "dataset/hiddenvec/encoder_output"
-dataset = CustomDataset(backbone_folder, encoder_folder)
-dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
+    @torch.no_grad()
+    def get_hidden_vec(self):
+        self.setup()
+        dataloader, device = self.cfg.train_dataloader, self.device
+        # shuffle을 False로 설정하여 새 DataLoader 객체 생성
+        dataloader = DataLoader(dataloader.dataset, batch_size=4, shuffle=False, num_workers=dataloader.num_workers, pin_memory=dataloader.pin_memory, collate_fn=dataloader.collate_fn)
 
-# 2. 모델 정의
-class RegressionModel(nn.Module):
-    def __init__(self):
-        super(RegressionModel, self).__init__()
-        self.linear = nn.Linear(10, 1)  # 10차원 입력, 1차원 출력
+        model = self.ema.module if self.ema else self.model
+        model.eval()
 
-    def forward(self, x):
-        return self.linear(x)
+        
+        for samples, targets in dataloader:
+            samples = samples.to(device)
+            targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-model = RegressionModel()
+            original_index = [int(i['image_id']) for i in targets]
+            print(original_index)
+            with vechook():
+                outputs = model(samples)
+            
+            yield vechook.variable
+            
+    def train(self):
+        model = None
+        for i in self.get_hidden_vec():
+            x, t = i['backbone output'], i['encoder output']
 
-# 3. 학습 과정
-criterion = nn.CrossEntropyLoss()  # 크로스 엔트로피 손실
-optimizer = optim.Adam(model.parameters(), lr=0.01)  # Adam 옵티마이저
+            x = [i.view(i.size(0), -1) for i in x]
+            t = [i.view(i.size(0), -1) for i in t]
+            
+            input_shape = [i.shape[-1] for i in x]
+            output_shape = [i.shape[-1] for i in t]
+            if model == None:
+                model = CustomModule(input_shape, output_shape)
+            y = model(*x)
+            print(y)
 
-# 학습 루프
-for epoch in range(100):  # 예: 100 에폭
-    for backbone_output, encoder_output in dataloader:
-        optimizer.zero_grad()   # 그래디언트 초기화
-        outputs = model(backbone_output)  # 모델 예측
-        loss = criterion(outputs, encoder_output)  # 손실 계산
-        loss.backward()  # 역전파
-        optimizer.step()  # 매개변수 업데이트
 
-    if (epoch+1) % 10 == 0:
-        print(f'Epoch [{epoch+1}/100], Loss: {loss.item():.4f}')
 
+if __name__ == '__main__':
+    Setting.print_shape = True
+    #분산 프로세스 초기화
+    dist.init_distributed()
+
+    #변수 초기화 'Only support from_scrach or resume or tuning at one time'
+    config = 'rtdetr_pytorch/configs/rtdetr/rtdetr_r18vd_6x_coco.yml'  #설정 파일 경로
+    resume = None  # resume = '../checkpoint'
+    tuning = 'https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetr_r18vd_5x_coco_objects365_from_paddle.pth' # 저장된 가중치 경로
+    amp = True # 자동 혼합 정밀도(Automatic Mixed Precision, AMP) FP16 FP32 섞어서 사용. 메모리 사용 감소, 에너지 사용 감소, 계산 속도 향상의 장점
+    test_only = False
+
+    #첫번재 인자로 받은 설정파일에 이후의 인자들을 merge 하여 설정파일 생성
+    cfg = YAMLConfig(
+            config,
+            resume=resume, 
+            use_amp=amp,
+            tuning=tuning
+        )
+    
+    GenSolver(cfg).train()

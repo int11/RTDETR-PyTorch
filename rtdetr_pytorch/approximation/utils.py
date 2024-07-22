@@ -9,9 +9,27 @@ class Setting:
     save_dir = 'dataset/hiddenvec'
     index = []
 
+
+class vechook:
+    hooking = False
+    variable = {}
+    
+    def __enter__(self):
+        vechook.hooking = True
+        return self
+    
+    @classmethod
+    def hook(cls, variable, name):
+        if cls.hooking == False:
+            return
+        cls.variable[name] = variable
+    
+    def __exit__(self, *exc_details):
+        vechook.hooking = False
+        return self
+    
 @contextlib.contextmanager
 def using_config(name, value):
-    
     try:
         old_value = getattr(Setting, name)
         setattr(Setting, name, value)
@@ -36,7 +54,6 @@ def vprint(variable, name):
         else:
             print(f"{name} shape: {variable.shape}")
 
-
 def save(variable, name):
     temp_dirs = os.path.join(Setting.save_dir, name)
 
@@ -44,7 +61,7 @@ def save(variable, name):
         if not os.path.exists(temp_dirs):
             os.makedirs(temp_dirs)
 
-        print('Saving... ', end=' ')
+        print('Saving... ', end='')
         with printing(): vprint(variable, name)
         
         for i in range(len(Setting.index)):

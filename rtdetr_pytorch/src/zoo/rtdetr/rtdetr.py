@@ -33,9 +33,9 @@ class RTDETR(nn.Module):
         
         vprint(x, 'input image')
         x = self.backbone(x)
-        save(x, 'backbone output')
+        vechook.hook(x, 'backbone output')
         x = self.encoder(x)
-        save(x, 'encoder output')
+        vechook.hook(x, 'encoder output')
         x = self.decoder(x, targets)
 
         return x
