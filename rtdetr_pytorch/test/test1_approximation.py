@@ -8,7 +8,7 @@ import src.misc.dist as dist
 from src.core import YAMLConfig 
 from src.solver.det_solver import DetSolver
 import torch.nn as nn
-from rtdetr_pytorch.approximation.utils import *
+from rtdetr_pytorch.test.utils import *
 
 class CustomModule(nn.Module):
     def __init__(self, input_size, output_size):
@@ -32,7 +32,7 @@ class CustomModule(nn.Module):
 
         return x1_out, x2_out, x3_out
     
-class GenSolver(DetSolver):
+class test1Solver(DetSolver):
     def __init__(self, cfg):
         super().__init__(cfg)
 
@@ -95,4 +95,4 @@ if __name__ == '__main__':
             tuning=tuning
         )
     
-    GenSolver(cfg).train()
+    test1Solver(cfg).train()

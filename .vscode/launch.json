@@ -27,7 +27,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "env": {"PYTHONPATH": "${workspaceFolder}${env:PYTHONPATH}"},
+            "env": {"PYTHONPATH": "${workspaceFolder}/rtdetr_pytorch:${workspaceFolder}:${env:PYTHONPATH}"},
             "justMyCode": false
         }
     ]

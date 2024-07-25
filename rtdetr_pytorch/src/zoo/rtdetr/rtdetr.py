@@ -9,7 +9,7 @@ import random
 import numpy as np 
 from src.core import register
 
-from rtdetr_pytorch.approximation.utils import *
+from rtdetr_pytorch.test.utils import *
 
 __all__ = ['RTDETR', ]
 

@@ -2,10 +2,11 @@ import os
 import sys 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 import src.misc.dist as dist 
-from src.core import YAMLConfig 
+from src.core import YAMLConfig
 from src.solver import TASKS
 from src.solver.det_solver import DetSolver
 from rtdetr_pytorch.approximation.utils import *
+
 def main(config, resume, tuning, amp, test_only):
     #분산 프로세스 초기화
     dist.init_distributed()
