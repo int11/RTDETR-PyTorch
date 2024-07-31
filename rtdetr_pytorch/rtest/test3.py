@@ -54,7 +54,7 @@ def TransformerEncoderLayer_forward(self, solver, src, src_mask=None, pos_embed=
 def encoder_forward(self, solver, feats):
     assert len(feats) == len(self.in_channels)
     proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
-    
+
     # encoder
     if self.num_encoder_layers > 0:
         for i, enc_ind in enumerate(self.use_encoder_idx):
@@ -104,6 +104,19 @@ class test3Solver(DetSolver):
     def change_forward(self, layer, forward_func):
         layer.forward = lambda *args, self=layer, solver=self, **kwargs: forward_func(self, solver, *args, **kwargs)
 
+    def train(self, ):
+        super().train()
+        model = self.ema.module if self.ema else self.model
+        self.change_forward(model.encoder.encoder[0].layers[0], TransformerEncoderLayer_forward)
+        self.change_forward(model.encoder, encoder_forward)
+        self.train_dataloader = DataLoader(self.train_dataloader.dataset,
+                                         batch_size=2,
+                                         shuffle=self.train_dataloader.shuffle,
+                                         num_workers=self.train_dataloader.num_workers,
+                                         pin_memory=self.train_dataloader.pin_memory,
+                                         collate_fn=self.train_dataloader.collate_fn)
+
+
     def eval(self, ):
         super().eval()
         model = self.ema.module if self.ema else self.model
@@ -117,8 +130,7 @@ class test3Solver(DetSolver):
                                          num_workers=self.val_dataloader.num_workers,
                                          pin_memory=self.val_dataloader.pin_memory,
                                          collate_fn=self.val_dataloader.collate_fn)
-    
-        
+
 
 if __name__ == '__main__':
     Setting.print_shape = False
@@ -140,4 +152,9 @@ if __name__ == '__main__':
             tuning=tuning
         )
     
-    test3Solver(cfg).val()
+    solver = test3Solver(cfg)
+
+    if test_only:
+        solver.val()
+    else:
+        solver.fit()

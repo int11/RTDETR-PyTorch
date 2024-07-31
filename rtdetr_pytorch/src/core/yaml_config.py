@@ -86,7 +86,7 @@ class YAMLConfig(BaseConfig):
             self._train_dataloader.shuffle = self.yaml_cfg['train_dataloader'].get('shuffle', False)
 
         return self._train_dataloader
-    
+
     @property
     def val_dataloader(self, ):
         if self._val_dataloader is None and 'val_dataloader' in self.yaml_cfg:
@@ -96,7 +96,6 @@ class YAMLConfig(BaseConfig):
             self._val_dataloader.shuffle = self.yaml_cfg['val_dataloader'].get('shuffle', False)
 
         return self._val_dataloader
-    
     
     @property
     def ema(self, ):
