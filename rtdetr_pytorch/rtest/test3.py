@@ -1,8 +1,9 @@
+import math
 import torch 
 from src.data.dataloader import DataLoader
 from src.core import YAMLConfig, yaml_utils
 from src.solver.det_solver import DetSolver
-from utils import *
+from rtest.utils import *
 from src.zoo.rtdetr.rtdetr import RTDETR
 import numpy as np 
 
@@ -12,11 +13,26 @@ import torch.nn as nn
 
 import torch.nn.functional as F 
 
+def attentionWeight_twice_matmul(weight, feature):
+    N, Q, K = weight.shape
+    QH = QW = int(math.sqrt(Q))
+    KH = KW = int(math.sqrt(K))
+
+    attentionWeight_twice = weight.reshape(N, QH, 1, QW, 1, KH, 1, KW, 1).repeat(1,1,2,1,2,1,2,1,2).reshape(N, Q * 2 ** 2, K * 2 ** 2)
+
+    N, C, H, W = feature.shape
+    result = torch.einsum('nij, ncj->nci', attentionWeight_twice, feature.flatten(2))
+    result = result.reshape(N, C, H, W)
+    return result + feature, attentionWeight_twice
+
+
 def TransformerEncoderLayer_forward(self, solver, src, src_mask=None, pos_embed=None) -> torch.Tensor:
     residual = src
     if self.normalize_before:
         src = self.norm1(src)
     q = k = self.with_pos_embed(src, pos_embed)
+
+
     src, _ = self.self_attn(q, k, value=src, attn_mask=src_mask)
     solver.attention_weight = _
 
@@ -37,11 +53,6 @@ def encoder_forward(self, solver, feats):
     assert len(feats) == len(self.in_channels)
     proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
     
-    # attention_weightx2 = F.interpolate(solver.attention_weight, scale_factor=2., mode='nearest')
-    # x[1] = x[1] * attention_weightx2
-    # attention_weightx4 = F.interpolate(attention_weightx2, scale_factor=2., mode='nearest')
-    # x[0] = x[0] * attention_weightx4
-
     # encoder
     if self.num_encoder_layers > 0:
         for i, enc_ind in enumerate(self.use_encoder_idx):
@@ -57,6 +68,10 @@ def encoder_forward(self, solver, feats):
             memory = self.encoder[i](src_flatten, pos_embed=pos_embed)
             proj_feats[enc_ind] = memory.permute(0, 2, 1).reshape(-1, self.hidden_dim, h, w).contiguous()
             # print([x.is_contiguous() for x in proj_feats ])
+
+
+    proj_feats[1], attentionWeight_twice = attentionWeight_twice_matmul(solver.attention_weight, proj_feats[1])
+    proj_feats[0], _ = attentionWeight_twice_matmul(attentionWeight_twice, proj_feats[0])
 
     # broadcasting and fusion
     inner_outs = [proj_feats[-1]]
@@ -87,29 +102,24 @@ class test3Solver(DetSolver):
     def change_forward(self, layer, forward_func):
         layer.forward = lambda *args, self=layer, solver=self, **kwargs: forward_func(self, solver, *args, **kwargs)
 
-    @torch.no_grad()
-    def val(self, ):
-        from src.data import get_coco_api_from_dataset
-        from src.solver.det_engine import evaluate
+    def eval(self, ):
+        super().eval()
+        model = self.ema.module if self.ema else self.model
+        self.change_forward(model.encoder.encoder[0].layers[0], TransformerEncoderLayer_forward)
+        self.change_forward(model.encoder, encoder_forward)
 
-        self.eval()
-
-        base_ds = get_coco_api_from_dataset(self.val_dataloader.dataset)
-        
-        module = self.ema.module if self.ema else self.model
-        
-        self.change_forward(module.encoder.encoder[0].layers[0], TransformerEncoderLayer_forward)
-        self.change_forward(module.encoder, encoder_forward)
-
-        test_stats, coco_evaluator = evaluate(module, self.criterion, self.postprocessor,
-                self.val_dataloader, base_ds, self.device, self.output_dir)
-                
-        if self.output_dir:
-            dist.save_on_master(coco_evaluator.coco_eval["bbox"].eval, self.output_dir / "eval.pth")
+        test_dataset = torch.utils.data.Subset(self.val_dataloader.dataset, range(1000))
+        self.val_dataloader = DataLoader(test_dataset,
+                                         batch_size=self.val_dataloader.batch_size,
+                                         shuffle=False,
+                                         num_workers=self.val_dataloader.num_workers,
+                                         pin_memory=self.val_dataloader.pin_memory,
+                                         collate_fn=self.val_dataloader.collate_fn)
+    
         
 
 if __name__ == '__main__':
-    Setting.print_shape = True
+    Setting.print_shape = False
     #분산 프로세스 초기화
     dist.init_distributed()
 

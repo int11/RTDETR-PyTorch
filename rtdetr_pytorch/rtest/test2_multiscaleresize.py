@@ -2,7 +2,7 @@ import torch
 from src.data.dataloader import DataLoader
 from src.core import YAMLConfig, yaml_utils
 from src.solver.det_solver import DetSolver
-from utils import *
+from rtest.utils import *
 from src.zoo.rtdetr.rtdetr import RTDETR
 import numpy as np 
 
@@ -51,8 +51,10 @@ def encoder_forward(self, feats):
         feat_low = outs[-1]
         feat_high = inner_outs[idx + 1]
 
-        # downsample_feat = self.downsample_convs[idx](feat_low)
-        downsample_feat = feat_low
+        # feat_low = F.interpolate(feat_low, scale_factor=2., mode='nearest')
+        downsample_feat = self.downsample_convs[idx](feat_low)
+        # feat_low = F.interpolate(feat_low, scale_factor=2., mode='nearest')
+        
 
         out = self.pan_blocks[idx](torch.concat([downsample_feat, feat_high], dim=1))
         outs.append(out)

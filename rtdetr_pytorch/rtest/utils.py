@@ -2,6 +2,7 @@ import contextlib
 import os
 
 import torch
+import time
 
 class Setting:
     print_shape = False
@@ -68,3 +69,16 @@ def save(variable, name):
             a = [e[i] for e in variable]
 
             torch.save(a, f'{os.path.join(temp_dirs, str(Setting.index[i]))}.pt')
+
+
+class Timer:
+    def __init__(self, name):
+        self.name = name
+    def __enter__(self):
+        self.start_time = time.time()
+        return self
+    
+    def __exit__(self, *exc_details):
+        self.end_time = time.time()
+        self.elapsed_time = self.end_time - self.start_time
+        print(f"{self.name} elapsed time: {self.elapsed_time:.4f} sec")

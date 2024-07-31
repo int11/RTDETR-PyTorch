@@ -8,7 +8,7 @@ import src.misc.dist as dist
 from src.core import YAMLConfig 
 from src.solver.det_solver import DetSolver
 import torch.nn as nn
-from rtdetr_pytorch.test.utils import *
+from rtest.utils import *
 
 class CustomModule(nn.Module):
     def __init__(self, input_size, output_size):
