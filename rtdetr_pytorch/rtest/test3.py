@@ -18,7 +18,9 @@ def attentionWeight_twice_matmul(weight, feature):
     QH = QW = int(math.sqrt(Q))
     KH = KW = int(math.sqrt(K))
 
-    attentionWeight_twice = weight.reshape(N, QH, 1, QW, 1, KH, 1, KW, 1).repeat(1,1,2,1,2,1,2,1,2).reshape(N, Q * 2 ** 2, K * 2 ** 2)
+    # 4 dimension interpolate 
+    scale_factor = 2
+    attentionWeight_twice = weight.reshape(N, QH, 1, QW, 1, KH, 1, KW, 1).repeat(1,1,scale_factor,1,scale_factor,1,scale_factor,1,scale_factor).reshape(N, Q * 2 ** 2, K * 2 ** 2)
 
     N, C, H, W = feature.shape
     result = torch.einsum('nij, ncj->nci', attentionWeight_twice, feature.flatten(2))
