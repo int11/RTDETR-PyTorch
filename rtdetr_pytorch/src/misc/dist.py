@@ -64,11 +64,7 @@ def setup_print(is_main):
 
 
 def is_dist_available_and_initialized():
-    if not tdist.is_available():
-        return False
-    if not tdist.is_initialized():
-        return False
-    return True
+    return tdist.is_available() and tdist.is_initialized()
 
 
 def get_rank():
