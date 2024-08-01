@@ -12,7 +12,7 @@ from typing import Dict
 
 import torch
 import torch.distributed as tdist
-
+from rtest.utils import *
 from .dist import is_dist_available_and_initialized, get_world_size
 
 
@@ -230,6 +230,9 @@ class MetricLogger(object):
                         i, len(iterable), eta=eta_string,
                         meters=str(self),
                         time=str(iter_time), data=str(data_time)))
+                    
+                vechook.hookappend([i, eta_string, str(iter_time), str(data_time), torch.cuda.max_memory_allocated() / MB], ['iterable', 'eta', 'iter_time', 'data_time', 'cuda.max_memory_allocated'])
+                
             i += 1
             end = time.time()
         total_time = time.time() - start_time

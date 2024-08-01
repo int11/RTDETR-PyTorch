@@ -53,10 +53,9 @@ class test1Solver(DetSolver):
 
             original_index = [int(i['image_id']) for i in targets]
             print(original_index)
-            with vechook():
+            with vechook() as v:
                 outputs = model(samples)
-            
-            yield vechook.variable
+                yield v.variable
             
     def train(self):
         model = None

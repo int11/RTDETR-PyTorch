@@ -12,21 +12,53 @@ class Setting:
 
 
 class vechook:
+    vechook_instances = {}
     hooking = False
-    variable = {}
     
+    def __init__(self, name='defualt') -> None:
+        vechook.vechook_instances[name] = self
+        self.name = name
+        self.variable = {}
+        
     def __enter__(self):
         vechook.hooking = True
         return self
     
     @classmethod
-    def hook(cls, variable, name):
+    def hook(cls, variables, names, instance_name='defualt'):
         if cls.hooking == False:
             return
-        cls.variable[name] = variable
+        
+        if isinstance(variables, tuple):
+            variables = (variables)
+        if isinstance(names, tuple):
+            names = (names)
+
+        instance = cls.vechook_instances[instance_name]
+
+        for variable, name in zip(variables, names):
+            instance.variable[name] = variable
     
+    @classmethod
+    def hookappend(cls, variables, names, instance_name='defualt'):
+        if cls.hooking == False:
+            return
+        
+        if isinstance(variables, tuple):
+            variables = (variables)
+        if isinstance(names, tuple):
+            names = (names)
+
+        instance = cls.vechook_instances[instance_name]
+
+        for variable, name in zip(variables, names):
+            if name not in instance.variable:
+                instance.variable[name] = []
+            instance.variable[name].append(variable)
+
     def __exit__(self, *exc_details):
         vechook.hooking = False
+        del vechook.vechook_instances[self.name]
         return self
     
 @contextlib.contextmanager
