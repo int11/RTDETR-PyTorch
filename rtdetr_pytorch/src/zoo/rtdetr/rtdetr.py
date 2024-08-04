@@ -12,9 +12,6 @@ from src.core import register
 
 from rtest.utils import *
 
-__all__ = ['RTDETR', ]
-
-
 @register
 class RTDETR(nn.Module):
     __inject__ = ['backbone', 'encoder', 'decoder', ]
@@ -48,6 +45,66 @@ class RTDETR(nn.Module):
                 m.convert_to_deploy()
         return self 
 
+
+def rtdetr_r18vd():
+    # PResNet
+    depth = 18
+    freeze_at= -1
+    freeze_norm= False
+
+
+    backbone = PResNet(depth=depth,
+                      variant='d',
+                      freeze_at=freeze_at,
+                      return_idx=[1, 2, 3],
+                      num_stages=4,
+                      freeze_norm=freeze_norm,
+                      pretrained=True)
+    
+    # HybridEncoder
+    in_channels= [128, 256, 512]
+    expansion= 0.5
+
+    encoder = HybridEncoder(
+        in_channels=in_channels,
+        feat_strides=[8, 16, 32],
+        hidden_dim=256,
+        use_encoder_idx=[2],
+        num_encoder_layers=1,
+        nhead=8,
+        dim_feedforward=1024,
+        dropout=0.0,
+        enc_act='gelu',
+        pe_temperature=10000,
+        expansion=expansion,
+        depth_mult=1,
+        act='silu',
+        eval_spatial_size=[640, 640]
+    )
+
+    # RTDETRTransformer
+    num_decoder_layers= 3
+
+    decoder = RTDETRTransformer(
+        feat_channels=[256, 256, 256],
+        feat_strides=[8, 16, 32],
+        hidden_dim=256,
+        num_levels=3,
+        num_queries=300,
+        num_decoder_layers=num_decoder_layers,
+        num_denoising=100,
+        eval_idx=-1,
+        eval_spatial_size=[640, 640]
+    )
+
+    model = RTDETR(
+        backbone=backbone,
+        encoder=encoder,
+        decoder=decoder,
+        multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+    )
+
+    return model
 
 def rtdetr_r50vd():
     backbone = PResNet(depth=50,
@@ -95,3 +152,5 @@ def rtdetr_r50vd():
     )
 
     return model
+
+

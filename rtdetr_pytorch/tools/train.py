@@ -1,6 +1,10 @@
+import copy
 import os 
 import sys
+import re
 from torch.cuda.amp import GradScaler, autocast
+from src.optim.optim import AdamW
+from src.optim.ema import ModelEMA
 from src.zoo.rtdetr.rtdetr_postprocessor import RTDETRPostProcessor
 from src.zoo.rtdetr.rtdetr_criterion import SetCriterion 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -12,6 +16,7 @@ from src.solver.det_solver import DetSolver
 from rtest.utils import *
 from src.zoo.rtdetr.rtdetr import RTDETR
 from typing import Dict
+import torch.optim.lr_scheduler as lr_scheduler
 
 def main():
     Setting.print_shape = True
@@ -76,14 +81,51 @@ def load_tuning_state(path, model):
     print(f'Load model.state_dict, {infos}')
 
 
-def main1(weight_path):
+def get_optim_params(cfg: dict, model: nn.Module):
+    '''
+    E.g.:
+        ^(?=.*a)(?=.*b).*$         means including a and b
+        ^((?!b.)*a((?!b).)*$       means including a but not b
+        ^((?!b|c).)*a((?!b|c).)*$  means including a but not (b | c)
+    '''
+    assert 'type' in cfg, ''
+    cfg = copy.deepcopy(cfg)
+
+    if 'params' not in cfg:
+        return model.parameters() 
+
+    assert isinstance(cfg['params'], list), ''
+
+    param_groups = []
+    visited = []
+    for pg in cfg['params']:
+        pattern = pg['params']
+        params = {k: v for k, v in model.named_parameters() if v.requires_grad and len(re.findall(pattern, k)) > 0}
+        pg['params'] = params.values()
+        param_groups.append(pg)
+        visited.extend(list(params.keys()))
+
+    names = [k for k, v in model.named_parameters() if v.requires_grad]
+
+    if len(visited) < len(names):
+        unseen = set(names) - set(visited)
+        params = {k: v for k, v in model.named_parameters() if v.requires_grad and k in unseen}
+        param_groups.append({'params': params.values()})
+        visited.extend(list(params.keys()))
+
+    assert len(visited) == len(names), ''
+
+    return param_groups
+
+def main1(weight_path, amp, model, optimizer):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     last_epoch = -1
 
-    model = RTDETR.rtdetr_r50vd()
     model.to(device)
     model = dist.warp_model(model, find_unused_parameters=False, sync_bn=True)
-        
+    if amp == True:
+        amp_model = ModelEMA(model, decay=0.9999, warmups=2000)
+
     load_tuning_state(weight_path)
 
     matcher = HungarianMatcher(weight_dict={'cost_class': 2, 'cost_bbox': 5, 'cost_giou': 2},
@@ -102,8 +144,24 @@ def main1(weight_path):
     postprocessor = RTDETRPostProcessor(num_top_queries= 300)
 
     scaler = GradScaler()
+   
+    output_dir = " ./output/rtdetr_r18vd_6x_coco"
 
+    lr_scheduler = lr_scheduler.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1)
+
+def rtdetr_r18vd_Solver():
+    path = 'https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetr_r18vd_5x_coco_objects365_from_paddle.pth'
+    amp = True
+    model = RTDETR.rtdetr_r18vd()
+
+    params= [{'params': '^(?=.*backbone)(?=.*norm).*$', 'lr': 0.00001, 'weight_decay': 0.},
+             {'params': '^(?=.*backbone)(?!.*norm).*$', 'lr': 0.00001},
+             {'params': '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bias)).*$', 'weight_decay': 0.}]
     
+    optimizer = AdamW(get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
+
+    main1(weight_path=path, amp=amp, model=model, optimizer=optimizer)
+
 
 if __name__ == '__main__':
     main()
@@ -116,4 +174,4 @@ if __name__ == '__main__':
     test_only = False
 
 
-    main1(path=path)
+    main()

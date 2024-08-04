@@ -8,12 +8,13 @@ from datetime import datetime
 from pathlib import Path 
 from typing import Dict
 
+from src.core.yaml_config import YAMLConfig
 from src.misc import dist
 from src.core import BaseConfig
 
 
 class BaseSolver(object):
-    def __init__(self, cfg: BaseConfig) -> None:
+    def __init__(self, cfg: YAMLConfig) -> None:
         
         self.cfg = cfg 
 
