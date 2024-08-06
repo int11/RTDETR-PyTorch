@@ -42,15 +42,17 @@ def fit(model,
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     model.to(device)
-    if weight_path != None:
-        load_tuning_state(weight_path, model)
         
     if use_amp == True:
         scaler = GradScaler()
 
     if use_ema == True:
         ema_model = ModelEMA(model, decay=0.9999, warmups=2000)
-   
+
+    last_epoch = 0
+    if weight_path != None:
+        last_epoch = load_tuning_state(weight_path, model, ema_model)
+
     criterion.to(device)  
 
     lr_scheduler = lr_schedulers.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
@@ -64,7 +66,7 @@ def fit(model,
     best_stat = {'epoch': -1, }
 
     start_time = time.time()
-    last_epoch = 0
+    
     for epoch in range(last_epoch + 1, epoch):
         if dist.is_dist_available_and_initialized():
             train_dataloader.sampler.set_epoch(epoch)
@@ -75,7 +77,7 @@ def fit(model,
 
         lr_scheduler.step()
         
-        dist.save_on_master(state_dict(epoch, model, optimizer, scaler, ema_model, lr_scheduler), os.path.join(save_dir, f'{epoch}.pth'))
+        dist.save_on_master(state_dict(epoch, model, ema_model), os.path.join(save_dir, f'{epoch}.pth'))
 
         module = ema_model.module if use_amp == True else model
         test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
@@ -97,19 +99,19 @@ def fit(model,
                     'n_parameters': n_parameters}
 
         if dist.is_main_process():
-            with (save_dir / "log.txt").open("a") as f:
-                f.write(json.dumps(log_stats) + "\n")
+            with open(os.path.join(save_dir, f'{epoch}_log.txt'), 'a') as f:
+                f.write(json.dumps(log_stats) + "\n")  
 
             # for evaluation logs
             if coco_evaluator is not None:
-                (save_dir / 'eval').mkdir(exist_ok=True)
+                os.makedirs(os.path.join(save_dir, 'eval'), exist_ok=True)
                 if "bbox" in coco_evaluator.coco_eval:
                     filenames = ['latest.pth']
                     if epoch % 50 == 0:
                         filenames.append(f'{epoch:03}.pth')
                     for name in filenames:
                         torch.save(coco_evaluator.coco_eval["bbox"].eval,
-                                save_dir / "eval" / name)
+                                os.path.join(save_dir, 'eval', name))
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

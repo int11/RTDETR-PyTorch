@@ -81,10 +81,11 @@ class ModelEMA(object):
     def state_dict(self, ):
         return dict(module=self.module.state_dict(), updates=self.updates, warmups=self.warmups)
     
-    def load_state_dict(self, state):
-        self.module.load_state_dict(state['module']) 
+    def load_state_dict(self, state, strict=True):
+        NamedTuple = self.module.load_state_dict(state['module'], strict=strict) 
         if 'updates' in state:
             self.updates = state['updates']
+        return NamedTuple
 
     def forwad(self, ):
         raise RuntimeError('ema...')

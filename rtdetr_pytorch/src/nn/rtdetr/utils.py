@@ -103,40 +103,19 @@ def get_activation(act: str, inpace: bool=True):
     return m 
 
 
-def load_tuning_state(path, model):
-    def matched_state(state: Dict[str, torch.Tensor], params: Dict[str, torch.Tensor]):
-        missed_list = []
-        unmatched_list = []
-        matched_state = {}
-        for k, v in state.items():
-            if k in params:
-                if v.shape == params[k].shape:
-                    matched_state[k] = params[k]
-                else:
-                    unmatched_list.append(k)
-            else:
-                missed_list.append(k)
-
-        return matched_state, {'missed': missed_list, 'unmatched': unmatched_list}
-
+def load_tuning_state(path, model=None, ema_model=None):
     """only load model for tuning and skip missed/dismatched keys
     """
-    if 'http' in path:
-        state = torch.hub.load_state_dict_from_url(path, map_location='cpu')
-    else:
-        state = torch.load(path, map_location='cpu')
+    state = torch.hub.load_state_dict_from_url(path, map_location='cpu') if 'http' in path else torch.load(path, map_location='cpu')
 
-    module = dist.de_parallel(model)
-    
-    # TODO hard code
-    if 'ema' in state:
-        stat, infos = matched_state(module.state_dict(), state['ema']['module'])
-    else:
-        stat, infos = matched_state(module.state_dict(), state['model'])
-
-    module.load_state_dict(stat, strict=False)
+    infos = dist.de_parallel(model).load_state_dict(state['model'], strict=False)
     print(f'Load model.state_dict, {infos}')
 
+    if 'ema' in state:
+        infos = dist.de_parallel(ema_model).load_state_dict(state['ema'], strict=False)
+        print(f'Load ema_model.state_dict, {infos}')
+
+    return state['last_epoch']
 
 def get_optim_params(params, model: nn.Module):
     '''
@@ -172,7 +151,7 @@ def get_optim_params(params, model: nn.Module):
 
     return param_groups
 
-def state_dict(last_epoch, model, optimizer, scaler, ema, lr_scheduler):
+def state_dict(last_epoch, model, ema_model=None):
     '''current train info state dict 
     '''
     state = {}
@@ -180,16 +159,7 @@ def state_dict(last_epoch, model, optimizer, scaler, ema, lr_scheduler):
     state['date'] = datetime.now().isoformat()
     state['last_epoch'] = last_epoch
 
-    if optimizer is not None:
-        state['optimizer'] = optimizer.state_dict()
-
-    if scaler is not None:
-        state['scaler'] = scaler.state_dict()
-
-    if ema is not None:
-        state['ema'] = ema.state_dict()
-
-    if lr_scheduler is not None:
-        state['lr_scheduler'] = lr_scheduler.state_dict()
+    if ema_model is not None:
+        state['ema'] = ema_model.state_dict()
 
     return state

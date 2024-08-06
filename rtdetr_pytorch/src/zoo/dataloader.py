@@ -4,13 +4,13 @@ from src.data.dataloader import DataLoader, default_collate_fn
 from src.data import transforms as T
 
 
-
-
-
 def rtdetr_train_dataloader(
         img_folder="./dataset/coco/train2017/",
         ann_file="./dataset/coco/annotations/instances_train2017.json", 
-        range_num=None):
+        range_num=None,
+        batch_size=4,
+        shuffle=True, 
+        num_workers=4):
     
     train_dataset = CocoDetection(
         img_folder=img_folder,
@@ -33,13 +33,16 @@ def rtdetr_train_dataloader(
     if range_num != None:
         train_dataset = torch.utils.data.Subset(train_dataset, range(range_num))
 
-    return DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=4, collate_fn=default_collate_fn, drop_last=True)
+    return DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=default_collate_fn, drop_last=True)
 
 
 def rtdetr_val_dataloader(
         img_folder="./dataset/coco/val2017/",
         ann_file="./dataset/coco/annotations/instances_val2017.json",
-        range_num=None):
+        range_num=None,
+        batch_size=4,
+        shuffle=True,
+        num_workers=4):
 
     val_dataset = CocoDetection(
         img_folder=img_folder,
@@ -53,4 +56,4 @@ def rtdetr_val_dataloader(
     if range_num != None:
         val_dataset = torch.utils.data.Subset(val_dataset, range(range_num))
 
-    return DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=4, collate_fn=default_collate_fn, drop_last=False)
+    return DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=default_collate_fn, drop_last=False)

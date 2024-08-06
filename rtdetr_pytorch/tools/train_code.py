@@ -1,4 +1,4 @@
-from rtdetr_pytorch.src.zoo.train import fit, rtdetr_train_dataloader, rtdetr_val_dataloader
+from src.zoo.train import fit, rtdetr_train_dataloader, rtdetr_val_dataloader
 from src.nn.rtdetr.utils import get_optim_params
 from src.misc import dist
 from src.optim.optim import AdamW
@@ -6,9 +6,8 @@ from rtest.utils import *
 
 from src.core import YAMLConfig
 from src.solver.det_solver import DetSolver
-from src.nn.rtdetr import rtdetr
 from src.optim.optim import AdamW
-from src.nn.rtdetr import rtdetr
+from src.zoo import model as rtdetr_zoo
 from rtest.utils import *
 
 import src.misc.dist as dist
@@ -45,7 +44,7 @@ def main2():
     weight_path = None
     save_dir = "./output/rtdetr_r18vd_6x_coco"
 
-    model = rtdetr.rtdetr_r18vd()
+    model = rtdetr_zoo.rtdetr_r18vd()
     model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
 
     params= [{'params': '^(?=.*backbone)(?=.*norm).*$', 'lr': 0.00001, 'weight_decay': 0.},
@@ -54,7 +53,7 @@ def main2():
     
     optimizer = AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, val_dataloader=rtdetr_val_dataloader(range_num=1000))
+    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir)
 
 
 if __name__ == '__main__':
