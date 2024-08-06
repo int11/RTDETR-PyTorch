@@ -1,3 +1,7 @@
+from src.nn.rtdetr.matcher import HungarianMatcher
+from src.nn.rtdetr.rtdetr_criterion import SetCriterion
+
+
 def rtdetr_criterion():
     matcher = HungarianMatcher(weight_dict={'cost_class': 2, 'cost_bbox': 5, 'cost_giou': 2},
                                use_focal_loss=True,
