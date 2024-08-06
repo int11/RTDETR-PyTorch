@@ -5,6 +5,11 @@ import math
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F 
+import datetime
+import re
+import src.misc.dist as dist
+from typing import Dict
+import torch.optim.lr_scheduler as lr_scheduler
 
 
 def inverse_sigmoid(x: torch.Tensor, eps: float=1e-5) -> torch.Tensor:
@@ -56,7 +61,6 @@ def deformable_attention_core_func(value, value_spatial_shapes, sampling_locatio
     return output.permute(0, 2, 1)
 
 
-import math 
 def bias_init_with_prob(prior_prob=0.01):
     """initialize conv/fc bias value according to a given probability value."""
     bias_init = float(-math.log((1 - prior_prob) / prior_prob))
@@ -99,3 +103,96 @@ def get_activation(act: str, inpace: bool=True):
     return m 
 
 
+def load_tuning_state(path, model):
+    def matched_state(state: Dict[str, torch.Tensor], params: Dict[str, torch.Tensor]):
+        missed_list = []
+        unmatched_list = []
+        matched_state = {}
+        for k, v in state.items():
+            if k in params:
+                if v.shape == params[k].shape:
+                    matched_state[k] = params[k]
+                else:
+                    unmatched_list.append(k)
+            else:
+                missed_list.append(k)
+
+        return matched_state, {'missed': missed_list, 'unmatched': unmatched_list}
+
+    """only load model for tuning and skip missed/dismatched keys
+    """
+    if 'http' in path:
+        state = torch.hub.load_state_dict_from_url(path, map_location='cpu')
+    else:
+        state = torch.load(path, map_location='cpu')
+
+    module = dist.de_parallel(model)
+    
+    # TODO hard code
+    if 'ema' in state:
+        stat, infos = matched_state(module.state_dict(), state['ema']['module'])
+    else:
+        stat, infos = matched_state(module.state_dict(), state['model'])
+
+    module.load_state_dict(stat, strict=False)
+    print(f'Load model.state_dict, {infos}')
+
+
+def get_optim_params(params, model: nn.Module):
+    '''
+    E.g.:
+        ^(?=.*a)(?=.*b).*$         means including a and b
+        ^((?!b.)*a((?!b).)*$       means including a but not b
+        ^((?!b|c).)*a((?!b|c).)*$  means including a but not (b | c)
+    '''
+
+    if params == None:
+        return model.parameters() 
+
+    assert isinstance(params, list), ''
+
+    param_groups = []
+    visited = []
+    for pg in params:
+        pattern = pg['params']
+        params = {k: v for k, v in model.named_parameters() if v.requires_grad and len(re.findall(pattern, k)) > 0}
+        pg['params'] = params.values()
+        param_groups.append(pg)
+        visited.extend(list(params.keys()))
+
+    names = [k for k, v in model.named_parameters() if v.requires_grad]
+
+    if len(visited) < len(names):
+        unseen = set(names) - set(visited)
+        params = {k: v for k, v in model.named_parameters() if v.requires_grad and k in unseen}
+        param_groups.append({'params': params.values()})
+        visited.extend(list(params.keys()))
+
+    assert len(visited) == len(names), ''
+
+    return param_groups
+
+def state_dict(model, last_epoch, optimizer, ema, scaler):
+    '''state dict
+    '''
+    state = {}
+    state['model'] = dist.de_parallel(model).state_dict()
+    state['date'] = datetime.now().isoformat()
+
+    # TODO
+    state['last_epoch'] = last_epoch
+
+    if optimizer is not None:
+        state['optimizer'] = optimizer.state_dict()
+
+    if lr_scheduler is not None:
+        state['lr_scheduler'] = lr_scheduler.state_dict()
+        # state['last_epoch'] = self.lr_scheduler.last_epoch
+
+    if ema is not None:
+        state['ema'] = ema.state_dict()
+
+    if scaler is not None:
+        state['scaler'] = scaler.state_dict()
+
+    return state
