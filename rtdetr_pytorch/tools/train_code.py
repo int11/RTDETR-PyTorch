@@ -1,15 +1,14 @@
-from src.zoo.rtdetr.train import fit, rtdetr_train_dataloader, rtdetr_val_dataloader
-from src.zoo.rtdetr.utils import get_optim_params
+from rtdetr_pytorch.src.zoo.train import fit, rtdetr_train_dataloader, rtdetr_val_dataloader
+from src.nn.rtdetr.utils import get_optim_params
 from src.misc import dist
-from src.zoo.rtdetr import *
 from src.optim.optim import AdamW
 from rtest.utils import *
 
 from src.core import YAMLConfig
 from src.solver.det_solver import DetSolver
-from src.zoo.rtdetr import rtdetr
+from src.nn.rtdetr import rtdetr
 from src.optim.optim import AdamW
-from src.zoo.rtdetr import rtdetr
+from src.nn.rtdetr import rtdetr
 from rtest.utils import *
 
 import src.misc.dist as dist
