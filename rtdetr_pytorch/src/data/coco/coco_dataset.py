@@ -5,6 +5,10 @@ COCO dataset which returns image_id for evaluation.
 Mostly copy-paste from https://github.com/pytorch/vision/blob/13b35ff/references/detection/coco_utils.py
 """
 
+from io import BytesIO
+from PIL import Image
+import os.path
+import requests
 import torch
 import torch.utils.data
 
@@ -27,6 +31,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
     
     def __init__(self, img_folder, ann_file, transforms, return_masks, remap_mscoco_category=False):
         super(CocoDetection, self).__init__(img_folder, ann_file)
+        os.makedirs(self.root, exist_ok=True)
         self._transforms = transforms
         self.prepare = ConvertCocoPolysToMask(return_masks, remap_mscoco_category)
         self.img_folder = img_folder
@@ -35,9 +40,23 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         self.remap_mscoco_category = remap_mscoco_category
 
     def __getitem__(self, idx):
-        img, target = super(CocoDetection, self).__getitem__(idx)
         image_id = self.ids[idx]
+        
+        img_info = self.coco.loadImgs(image_id)[0]
+        img_full_path = os.path.join(self.root, img_info["file_name"])
+
+        # if the image not exists, download and save it
+        if os.path.exists(img_full_path):
+            img = Image.open(img_full_path).convert("RGB")
+        else:
+            response = requests.get(img_info['coco_url'])
+            img = Image.open(BytesIO(response.content)).convert("RGB")
+            img.save(img_full_path)
+        
+
+        target = self._load_target(image_id)
         target = {'image_id': image_id, 'annotations': target}
+
         img, target = self.prepare(img, target)
 
         # ['boxes', 'masks', 'labels']:
