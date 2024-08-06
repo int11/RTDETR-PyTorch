@@ -4,14 +4,6 @@ import os
 import torch
 import time
 
-try:
-    if 'root' in os.path.expanduser('~'):
-        cache_dir = '/content/drive/MyDrive/.RT-DETR'
-    else:
-        cache_dir = os.path.join(os.path.expanduser('~'), '.RT-DETR')
-except:
-    print("No cache dir found to store weights.")
-
 class Setting:
     print_shape = False
     save_variable = False
