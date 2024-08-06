@@ -1,4 +1,4 @@
-from src.zoo.rtdetr.train import fit
+from src.zoo.rtdetr.train import fit, rtdetr_train_dataloader, rtdetr_val_dataloader
 from src.zoo.rtdetr.utils import get_optim_params
 from src.misc import dist
 from src.zoo.rtdetr import *
@@ -32,8 +32,7 @@ def main1():
             config,
             resume=resume, 
             use_amp=amp,
-            tuning=tuning
-        )
+            tuning=tuning)
 
     solver = DetSolver(cfg)
 
@@ -45,7 +44,7 @@ def main1():
 # custom implement
 def main2():
     weight_path = None
-    output_dir = "./output/rtdetr_r18vd_6x_coco"
+    save_dir = "./output/rtdetr_r18vd_6x_coco"
 
     model = rtdetr.rtdetr_r18vd()
     model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
@@ -56,7 +55,7 @@ def main2():
     
     optimizer = AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, output_dir=output_dir)
+    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, val_dataloader=rtdetr_val_dataloader(range_num=1000))
 
 
 if __name__ == '__main__':

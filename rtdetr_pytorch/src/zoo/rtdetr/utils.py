@@ -5,7 +5,7 @@ import math
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F 
-import datetime
+from datetime import datetime
 import re
 import src.misc.dist as dist
 from typing import Dict
@@ -172,27 +172,24 @@ def get_optim_params(params, model: nn.Module):
 
     return param_groups
 
-def state_dict(model, last_epoch, optimizer, ema, scaler):
-    '''state dict
+def state_dict(last_epoch, model, optimizer, scaler, ema, lr_scheduler):
+    '''current train info state dict 
     '''
     state = {}
     state['model'] = dist.de_parallel(model).state_dict()
     state['date'] = datetime.now().isoformat()
-
-    # TODO
     state['last_epoch'] = last_epoch
 
     if optimizer is not None:
         state['optimizer'] = optimizer.state_dict()
 
-    if lr_scheduler is not None:
-        state['lr_scheduler'] = lr_scheduler.state_dict()
-        # state['last_epoch'] = self.lr_scheduler.last_epoch
+    if scaler is not None:
+        state['scaler'] = scaler.state_dict()
 
     if ema is not None:
         state['ema'] = ema.state_dict()
 
-    if scaler is not None:
-        state['scaler'] = scaler.state_dict()
+    if lr_scheduler is not None:
+        state['lr_scheduler'] = lr_scheduler.state_dict()
 
     return state

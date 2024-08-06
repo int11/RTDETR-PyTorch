@@ -1,5 +1,6 @@
 import datetime
 import json
+from pathlib import Path 
 
 from torch.cuda.amp import GradScaler
 from src.data.coco.coco_eval import CocoEvaluator
@@ -19,7 +20,7 @@ from src.zoo.rtdetr import rtdetr
 from src.zoo.rtdetr.utils import *
 
 import src.misc.dist as dist
-import torch.optim.lr_scheduler as lr_scheduler
+import torch.optim.lr_scheduler as lr_schedulers
 
 
 def rtdetr_criterion():
@@ -86,14 +87,15 @@ def rtdetr_val_dataloader(
 
 
 def fit(model, 
-          weight_path, 
-          optimizer, 
-          output_dir,
-          criterion=None,
-          train_dataloader=None, 
-          val_dataloader=None,
-          epoch=72,
-          amp=True):
+        weight_path, 
+        optimizer, 
+        save_dir,
+        criterion=None,
+        train_dataloader=None, 
+        val_dataloader=None,
+        epoch=72,
+        use_amp=True,
+        use_ema=True):
 
     if criterion == None:
         criterion = rtdetr_criterion()
@@ -108,15 +110,16 @@ def fit(model,
     if weight_path != None:
         load_tuning_state(weight_path, model)
         
-    if amp == True:
-        ema_model = ModelEMA(model, decay=0.9999, warmups=2000)
+    if use_amp == True:
         scaler = GradScaler()
+
+    if use_ema == True:
+        ema_model = ModelEMA(model, decay=0.9999, warmups=2000)
    
     criterion.to(device)  
 
-    scheduler = lr_scheduler.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
+    lr_scheduler = lr_schedulers.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
     
-
     print("Start training")
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -135,17 +138,11 @@ def fit(model,
             model, criterion, train_dataloader, optimizer, device, epoch,
             clip_max_norm=0.1, print_freq=100, ema=ema_model, scaler=scaler)
 
-        scheduler.step()
+        lr_scheduler.step()
         
- 
-        checkpoint_paths = [output_dir / 'checkpoint.pth']
-        # extra checkpoint before LR drop and every 100 epochs
-        if (epoch + 1) % args.checkpoint_step == 0:
-            checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
-        for checkpoint_path in checkpoint_paths:
-            dist.save_on_master(state_dict(epoch), checkpoint_path)
+        dist.save_on_master(state_dict(epoch, model, optimizer, scaler, ema_model, lr_scheduler), os.path.join(save_dir, f'{epoch}.pth'))
 
-        module = ema_model.module if amp == True else model
+        module = ema_model.module if use_amp == True else model
         test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
 
         # TODO 
@@ -165,19 +162,19 @@ def fit(model,
                     'n_parameters': n_parameters}
 
         if dist.is_main_process():
-            with (output_dir / "log.txt").open("a") as f:
+            with (save_dir / "log.txt").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
             # for evaluation logs
             if coco_evaluator is not None:
-                (output_dir / 'eval').mkdir(exist_ok=True)
+                (save_dir / 'eval').mkdir(exist_ok=True)
                 if "bbox" in coco_evaluator.coco_eval:
                     filenames = ['latest.pth']
                     if epoch % 50 == 0:
                         filenames.append(f'{epoch:03}.pth')
                     for name in filenames:
                         torch.save(coco_evaluator.coco_eval["bbox"].eval,
-                                output_dir / "eval" / name)
+                                save_dir / "eval" / name)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
@@ -264,7 +261,7 @@ def rtdetr_r18vd_train():
     
     optimizer = AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, output_dir=output_dir)
+    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=output_dir)
 
 
 def rtdetr_r34vd_train():
@@ -280,7 +277,7 @@ def rtdetr_r34vd_train():
 
     optimizer = AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, output_dir=output_dir)
+    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=output_dir)
 
 
 def rtdetr_r50vd_train():
@@ -296,7 +293,7 @@ def rtdetr_r50vd_train():
 
     optimizer=AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, output_dir=output_dir)
+    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=output_dir)
     
     
 def rtdetr_r50vd_m_train():
@@ -312,7 +309,7 @@ def rtdetr_r50vd_m_train():
 
     optimizer=AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, output_dir=output_dir)
+    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=output_dir)
 
 
 def rtdetr_r101vd_train():
@@ -328,5 +325,5 @@ def rtdetr_r101vd_train():
 
     optimizer=AdamW(params=get_optim_params(params, model), lr=0.00001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, output_dir=output_dir)
+    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=output_dir)
 
