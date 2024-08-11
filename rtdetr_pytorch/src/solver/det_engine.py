@@ -75,7 +75,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         loss_value = sum(loss_dict_reduced.values())
 
         if i % 100 == 0:
-            print(epoch, i, len(data_loader), loss, time.time() - t)
+            totle_t = time.time() - t
+            print(epoch, i, len(data_loader), loss, totle_t, totle_t / (data_loader.batch_size * 100)) 
             t = time.time()
             totle_t = 0
 

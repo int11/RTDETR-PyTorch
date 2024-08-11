@@ -43,7 +43,7 @@ def main1():
 # custom implement
 def main2():
     weight_path = 'output/rtdetr_r18vd_6x_coco/3.pth'
-    save_dir = "./output/rtdetr_r18vd_6x_coco"
+    save_dir = "output/rtdetr_r18vd_6x_coco"
 
     model = rtdetr_zoo.rtdetr_r18vd()
     model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
@@ -54,10 +54,10 @@ def main2():
     
     optimizer = AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    train_dataloader = rtdetr_train_dataloader(batch_size=4, num_workers=0)
-    val_dataloader = rtdetr_val_dataloader(batch_size=2, range_num=200, num_workers=0)
+    train_dataloader = rtdetr_train_dataloader(batch_size=8, num_workers=2)
+    val_dataloader = rtdetr_val_dataloader(batch_size=4, range_num=200, num_workers=2)
 
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, train_dataloader=train_dataloader, val_dataloader=val_dataloader, use_amp=False, use_ema=False)
+    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, train_dataloader=train_dataloader, val_dataloader=val_dataloader, use_amp=True, use_ema=True)
 
 
 if __name__ == '__main__':

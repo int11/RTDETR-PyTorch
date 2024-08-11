@@ -13,6 +13,8 @@ import torch
 import torch.utils.data
 
 import torchvision
+
+from src.data.utils import TorchSerializedList
 torchvision.disable_beta_transforms_warning()
 
 from torchvision import datapoints
@@ -82,6 +84,81 @@ class CocoDetection(torchvision.datasets.CocoDetection):
 
         return s 
 
+
+class CocoDetection_memory_shared(torchvision.datasets.VisionDataset):
+    def __init__(self, img_folder, ann_file, transforms, return_masks, remap_mscoco_category=False):
+        from pycocotools.coco import COCO
+
+        super(CocoDetection_memory_shared, self).__init__(img_folder)
+
+        coco = COCO(ann_file)
+
+        index = sorted(coco.imgs.keys())
+        self.imgs_info = [coco.imgs[i] for i in index]
+        self.anns = [coco.imgToAnns[i] for i in index]
+        
+        self.imgs_info = TorchSerializedList(self.imgs_info)
+        self.anns = TorchSerializedList(self.anns)
+
+        self._transforms = transforms
+        os.makedirs(self.root, exist_ok=True)
+        self.prepare = ConvertCocoPolysToMask(return_masks, remap_mscoco_category)
+        self.img_folder = img_folder
+        self.ann_file = ann_file
+        self.return_masks = return_masks
+        self.remap_mscoco_category = remap_mscoco_category
+    
+
+    def _load_image(self, idx: int) -> Image.Image:
+        img_info = self.imgs_info[idx]
+        file_name = img_info["file_name"]
+        img_full_path = os.path.join(self.root, file_name)
+
+        if os.path.exists(img_full_path):
+            img = Image.open(img_full_path).convert("RGB")
+        else:
+            response = requests.get(img_info['coco_url'])
+            img = Image.open(BytesIO(response.content)).convert("RGB")
+            img.save(img_full_path)
+        return img
+
+    def _load_target(self, idx: int):
+        return  self.anns[idx]
+    
+    def __getitem__(self, idx):
+        img = self._load_image(idx)
+        target = self._load_target(idx)
+
+        target = {'image_id': self.imgs_info[idx]['id'], 'annotations': target}
+
+        img, target = self.prepare(img, target)
+
+        # ['boxes', 'masks', 'labels']:
+        if 'boxes' in target:
+            target['boxes'] = datapoints.BoundingBox(
+                target['boxes'], 
+                format=datapoints.BoundingBoxFormat.XYXY, 
+                spatial_size=img.size[::-1]) # h w
+
+        if 'masks' in target:
+            target['masks'] = datapoints.Mask(target['masks'])
+
+        if self._transforms is not None:
+            img, target = self._transforms(img, target)
+            
+        return img, target
+    
+    def extra_repr(self) -> str:
+        s = f' img_folder: {self.img_folder}\n ann_file: {self.ann_file}\n'
+        s += f' return_masks: {self.return_masks}\n'
+        if hasattr(self, '_transforms') and self._transforms is not None:
+            s += f' transforms:\n   {repr(self._transforms)}'
+
+        return s 
+    
+    def __len__(self) -> int:
+        return len(self.imgs_info)
+    
 
 def convert_coco_poly_to_mask(segmentations, height, width):
     masks = []
