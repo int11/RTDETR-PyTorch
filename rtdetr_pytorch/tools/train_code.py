@@ -1,7 +1,7 @@
 from src.zoo.train import fit, rtdetr_train_dataloader, rtdetr_val_dataloader
 from src.nn.rtdetr.utils import get_optim_params
 from src.misc import dist
-from src.optim.optim import AdamW
+
 from rtest.utils import *
 
 from src.core import YAMLConfig
@@ -10,7 +10,8 @@ from src.optim.optim import AdamW
 from src.zoo import model as rtdetr_zoo
 from rtest.utils import *
 
-import src.misc.dist as dist
+import torch.utils.data as data
+
 
 # original implement
 def main1():
@@ -41,7 +42,7 @@ def main1():
 
 # custom implement
 def main2():
-    weight_path = None
+    weight_path = 'output/rtdetr_r18vd_6x_coco/3.pth'
     save_dir = "./output/rtdetr_r18vd_6x_coco"
 
     model = rtdetr_zoo.rtdetr_r18vd()
@@ -53,7 +54,10 @@ def main2():
     
     optimizer = AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir)
+    train_dataloader = rtdetr_train_dataloader(batch_size=4, num_workers=0)
+    val_dataloader = rtdetr_val_dataloader(batch_size=2, range_num=200, num_workers=0)
+
+    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, train_dataloader=train_dataloader, val_dataloader=val_dataloader, use_amp=False, use_ema=False)
 
 
 if __name__ == '__main__':
