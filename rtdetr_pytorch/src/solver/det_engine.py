@@ -29,8 +29,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
     i = 0
     totle_t = 0
+    t = time.time()
+
     for samples, targets in data_loader:
-        t = time.time()
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -73,9 +74,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         loss_dict_reduced = reduce_dict(loss_dict)
         loss_value = sum(loss_dict_reduced.values())
 
-        totle_t += time.time() - t
         if i % 100 == 0:
-            print(epoch, i, len(data_loader), loss, totle_t)
+            print(epoch, i, len(data_loader), loss, time.time() - t)
+            t = time.time()
             totle_t = 0
 
         if not math.isfinite(loss_value):

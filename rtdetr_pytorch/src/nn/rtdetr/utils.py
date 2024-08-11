@@ -113,7 +113,7 @@ def load_tuning_state(path, model, ema_model=None):
 
     if 'ema' in state:
         if ema_model is None:
-            print('exist ema model wieght in file but flag is use_ema=False, skip loading ema model')
+            print('WARNING, ema model weight exist in file but flag is use_ema=False, skip loading ema model')
         else:
             infos = dist.de_parallel(ema_model).load_state_dict(state['ema'], strict=False)
             print(f'Load ema_model.state_dict, {infos}')
