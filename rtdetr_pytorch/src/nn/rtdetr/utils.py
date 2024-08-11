@@ -103,7 +103,7 @@ def get_activation(act: str, inpace: bool=True):
     return m 
 
 
-def load_tuning_state(path, model=None, ema_model=None):
+def load_tuning_state(path, model, ema_model=None):
     """only load model for tuning and skip missed/dismatched keys
     """
     state = torch.hub.load_state_dict_from_url(path, map_location='cpu') if 'http' in path else torch.load(path, map_location='cpu')
@@ -112,8 +112,11 @@ def load_tuning_state(path, model=None, ema_model=None):
     print(f'Load model.state_dict, {infos}')
 
     if 'ema' in state:
-        infos = dist.de_parallel(ema_model).load_state_dict(state['ema'], strict=False)
-        print(f'Load ema_model.state_dict, {infos}')
+        if ema_model is None:
+            print('exist ema model wieght in file but flag is use_ema=False, skip loading ema model')
+        else:
+            infos = dist.de_parallel(ema_model).load_state_dict(state['ema'], strict=False)
+            print(f'Load ema_model.state_dict, {infos}')
 
     return state['last_epoch']
 

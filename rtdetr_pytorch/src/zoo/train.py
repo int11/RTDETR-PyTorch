@@ -41,18 +41,15 @@ def fit(model,
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    model.to(device)
-        
-    if use_amp == True:
-        scaler = GradScaler()
-
-    if use_ema == True:
-        ema_model = ModelEMA(model, decay=0.9999, warmups=2000)
+    scaler = GradScaler() if use_amp == True else None
+    ema_model = ModelEMA(model, decay=0.9999, warmups=2000) if use_ema == True else None
 
     last_epoch = 0
     if weight_path != None:
         last_epoch = load_tuning_state(weight_path, model, ema_model)
 
+    model.to(device)
+    ema_model.to(device) if use_ema == True else None
     criterion.to(device)  
 
     lr_scheduler = lr_schedulers.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
@@ -62,56 +59,23 @@ def fit(model,
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
-    # best_stat = {'coco_eval_bbox': 0, 'coco_eval_masks': 0, 'epoch': -1, }
-    best_stat = {'epoch': -1, }
-
     start_time = time.time()
     
     for epoch in range(last_epoch + 1, epoch):
         if dist.is_dist_available_and_initialized():
             train_dataloader.sampler.set_epoch(epoch)
         
-        train_stats = train_one_epoch(
-            model, criterion, train_dataloader, optimizer, device, epoch,
-            clip_max_norm=0.1, print_freq=100, ema=ema_model, scaler=scaler)
+        train_one_epoch(model, criterion, train_dataloader, optimizer, device, epoch, clip_max_norm=0.1, print_freq=100, ema=ema_model, scaler=scaler)
 
         lr_scheduler.step()
         
+        if os.path.exists(save_dir) == False:
+            os.makedirs(save_dir)
+            
         dist.save_on_master(state_dict(epoch, model, ema_model), os.path.join(save_dir, f'{epoch}.pth'))
 
         module = ema_model.module if use_amp == True else model
         test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
-
-        # TODO 
-        for k in test_stats.keys():
-            if k in best_stat:
-                best_stat['epoch'] = epoch if test_stats[k][0] > best_stat[k] else best_stat['epoch']
-                best_stat[k] = max(best_stat[k], test_stats[k][0])
-            else:
-                best_stat['epoch'] = epoch
-                best_stat[k] = test_stats[k][0]
-        print('best_stat: ', best_stat)
-
-
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                    **{f'test_{k}': v for k, v in test_stats.items()},
-                    'epoch': epoch,
-                    'n_parameters': n_parameters}
-
-        if dist.is_main_process():
-            with open(os.path.join(save_dir, f'{epoch}_log.txt'), 'a') as f:
-                f.write(json.dumps(log_stats) + "\n")  
-
-            # for evaluation logs
-            if coco_evaluator is not None:
-                os.makedirs(os.path.join(save_dir, 'eval'), exist_ok=True)
-                if "bbox" in coco_evaluator.coco_eval:
-                    filenames = ['latest.pth']
-                    if epoch % 50 == 0:
-                        filenames.append(f'{epoch:03}.pth')
-                    for name in filenames:
-                        torch.save(coco_evaluator.coco_eval["bbox"].eval,
-                                os.path.join(save_dir, 'eval', name))
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

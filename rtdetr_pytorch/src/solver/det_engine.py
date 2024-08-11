@@ -13,7 +13,7 @@ from typing import Iterable
 
 import torch
 import torch.amp 
-
+import time
 from src.data import CocoEvaluator
 from src.misc import (MetricLogger, SmoothedValue, reduce_dict)
 
@@ -23,16 +23,14 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     device: torch.device, epoch: int, max_norm: float = 0, **kwargs):
     model.train()
     criterion.train()
-    metric_logger = MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    # metric_logger.add_meter('class_error', SmoothedValue(window_size=1, fmt='{value:.2f}'))
-    header = 'Epoch: [{}]'.format(epoch)
-    print_freq = kwargs.get('print_freq', 10)
     
     ema = kwargs.get('ema', None)
     scaler = kwargs.get('scaler', None)
 
-    for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
+    i = 0
+    totle_t = 0
+    for samples, targets in data_loader:
+        t = time.time()
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -40,7 +38,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             with torch.autocast(device_type=str(device), cache_enabled=True):
                 outputs = model(samples, targets)
             
-            with torch.autocast(device_type=str(device), enabled=False):
+            # fixed, need to commit main
+            with torch.autocast(device_type=str(device), enabled=True):
                 loss_dict = criterion(outputs, targets)
 
             loss = sum(loss_dict.values())
@@ -74,18 +73,18 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         loss_dict_reduced = reduce_dict(loss_dict)
         loss_value = sum(loss_dict_reduced.values())
 
+        totle_t += time.time() - t
+        if i % 100 == 0:
+            print(epoch, i, len(data_loader), loss, totle_t)
+            totle_t = 0
+
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             print(loss_dict_reduced)
             sys.exit(1)
 
-        metric_logger.update(loss=loss_value, **loss_dict_reduced)
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+        i += 1
 
-    # gather the stats from all processes
-    metric_logger.synchronize_between_processes()
-    print("Averaged stats:", metric_logger)
-    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 
 
@@ -185,6 +184,3 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     #     stats['PQ_st'] = panoptic_res["Stuff"]
 
     return stats, coco_evaluator
-
-
-

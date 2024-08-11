@@ -62,7 +62,7 @@ def setup_print(is_main):
 
     __builtin__.print = print
 
-
+# fixed, need to commit main
 def is_dist_available_and_initialized():
     return tdist.is_available() and tdist.is_initialized()
 
