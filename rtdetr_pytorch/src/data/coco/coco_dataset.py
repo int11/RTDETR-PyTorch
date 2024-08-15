@@ -13,7 +13,7 @@ import torch
 import torch.utils.data
 
 import torchvision
-
+import multiprocessing as mp
 from src.data.utils import TorchSerializedList
 torchvision.disable_beta_transforms_warning()
 
@@ -22,6 +22,7 @@ from torchvision import datapoints
 from pycocotools import mask as coco_mask
 
 from src.core import register
+from pycocotools.coco import COCO
 
 __all__ = ['CocoDetection']
 
@@ -85,11 +86,9 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         return s 
 
 
-class CocoDetection_memory_shared(torchvision.datasets.VisionDataset):
+class CocoDetection_shared_memory(torchvision.datasets.VisionDataset):
     def __init__(self, img_folder, ann_file, transforms, return_masks, remap_mscoco_category=False):
-        from pycocotools.coco import COCO
-
-        super(CocoDetection_memory_shared, self).__init__(img_folder)
+        super(CocoDetection_shared_memory, self).__init__(img_folder)
 
         coco = COCO(ann_file)
 
@@ -107,7 +106,6 @@ class CocoDetection_memory_shared(torchvision.datasets.VisionDataset):
         self.ann_file = ann_file
         self.return_masks = return_masks
         self.remap_mscoco_category = remap_mscoco_category
-    
 
     def _load_image(self, idx: int) -> Image.Image:
         img_info = self.imgs_info[idx]
@@ -158,7 +156,7 @@ class CocoDetection_memory_shared(torchvision.datasets.VisionDataset):
     
     def __len__(self) -> int:
         return len(self.imgs_info)
-    
+
 
 def convert_coco_poly_to_mask(segmentations, height, width):
     masks = []

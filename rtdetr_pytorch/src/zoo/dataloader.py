@@ -1,5 +1,5 @@
 import torch
-from src.data.coco.coco_dataset import CocoDetection, CocoDetection_memory_shared
+from src.data.coco.coco_dataset import CocoDetection, CocoDetection_shared_memory
 from src.data.dataloader import DataLoader, default_collate_fn
 from src.data import transforms as T
 
@@ -8,7 +8,7 @@ def rtdetr_train_dataset(
         img_folder="./dataset/coco/train2017/",
         ann_file="./dataset/coco/annotations/instances_train2017.json"):
     
-    train_dataset = CocoDetection_memory_shared(
+    train_dataset = CocoDetection_shared_memory(
         img_folder=img_folder,
         ann_file=ann_file,
         transforms = T.Compose([T.RandomPhotometricDistort(p=0.5), 
@@ -58,7 +58,7 @@ def rtdetr_val_dataset(
         img_folder="./dataset/coco/val2017/",
         ann_file="./dataset/coco/annotations/instances_val2017.json"):
     
-    val_dataset = CocoDetection_memory_shared(
+    val_dataset = CocoDetection_shared_memory(
         img_folder=img_folder,
         ann_file=ann_file,
         transforms=T.Compose([T.Resize(size=[640, 640]), 
