@@ -9,6 +9,12 @@ __all__ = ['DataLoader']
 
 @register
 class DataLoader(data.DataLoader):
+    def __init__(self, *args, **kwargs):
+        self.shuffle = kwargs.get('shuffle', False)
+        kwargs['shuffle'] = self.shuffle
+        super(DataLoader, self).__init__(*args, **kwargs)
+        
+
     __inject__ = ['dataset', 'collate_fn']
 
     def __repr__(self) -> str:

@@ -36,11 +36,11 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         if scaler is not None:
-            with torch.autocast(device_type=str(device), cache_enabled=True):
+            with torch.autocast(device_type=device.type, cache_enabled=True):
                 outputs = model(samples, targets)
             
             # fixed, need to commit main
-            with torch.autocast(device_type=str(device), enabled=True):
+            with torch.autocast(device_type=device.type, enabled=True):
                 loss_dict = criterion(outputs, targets)
 
             loss = sum(loss_dict.values())
@@ -76,7 +76,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
         if i % 100 == 0:
             totle_t = time.time() - t
-            print(epoch, i, len(data_loader), loss, totle_t, totle_t / (data_loader.batch_size * 100)) 
+            print(epoch, i, len(data_loader), loss, totle_t, totle_t / (data_loader.batch_size * torch.cuda.device_count() * 100)) 
             t = time.time()
             totle_t = 0
 

@@ -6,6 +6,7 @@ reference
 by lyuwenyu
 """
 
+import os
 import random
 import numpy as np 
 
@@ -14,7 +15,7 @@ import torch.nn as nn
 import torch.distributed
 import torch.distributed as tdist
 
-from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.nn.parallel import DistributedDataParallel
 
 from torch.utils.data import DistributedSampler
 from torch.utils.data.dataloader import DataLoader
@@ -31,12 +32,12 @@ def init_distributed():
         # LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  
         # RANK = int(os.getenv('RANK', -1))
         # WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
-        
-        tdist.init_process_group(init_method='env://', )
+        tdist.init_process_group()
         torch.distributed.barrier()
 
         rank = get_rank()
         device = torch.device(f'cuda:{rank}')
+        # setting default device
         torch.cuda.set_device(device)
 
         setup_print(rank == 0)
@@ -44,7 +45,8 @@ def init_distributed():
 
         return True 
 
-    except:
+    except Exception as e:
+        print(e)
         print('Not init distributed mode.')
         return False 
 
@@ -62,6 +64,7 @@ def setup_print(is_main):
 
     __builtin__.print = print
 
+
 # fixed, need to commit main
 def is_dist_available_and_initialized():
     return tdist.is_available() and tdist.is_initialized()
@@ -78,7 +81,7 @@ def get_world_size():
         return 1
     return tdist.get_world_size()
 
-    
+
 def is_main_process():
     return get_rank() == 0
 
@@ -88,25 +91,28 @@ def save_on_master(*args, **kwargs):
         torch.save(*args, **kwargs)
 
 
-
 def warp_model(model, find_unused_parameters=False, sync_bn=False,):
     if is_dist_available_and_initialized():
         rank = get_rank()
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model) if sync_bn else model 
-        model = DDP(model, device_ids=[rank], output_device=rank, find_unused_parameters=find_unused_parameters)
+        model = DistributedDataParallel(model, device_ids=[rank], output_device=rank, find_unused_parameters=find_unused_parameters)
     return model
 
 
-def warp_loader(loader, shuffle=False):        
+def warp_loader(loader):
     if is_dist_available_and_initialized():
-        sampler = DistributedSampler(loader.dataset, shuffle=shuffle)
-        loader = DataLoader(loader.dataset, 
-                            loader.batch_size, 
+        device_count = torch.cuda.device_count()
+        dataset = loader.dataset
+        sampler = DistributedSampler(dataset, shuffle=loader.shuffle)
+        loader = DataLoader(dataset, 
+                            loader.batch_size // device_count, 
                             sampler=sampler, 
                             drop_last=loader.drop_last, 
                             collate_fn=loader.collate_fn, 
                             pin_memory=loader.pin_memory,
-                            num_workers=loader.num_workers, )
+                            num_workers=(loader.num_workers + device_count - 1) // device_count)
+        
+    
     return loader
 
 

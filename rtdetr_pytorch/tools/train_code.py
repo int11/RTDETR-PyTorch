@@ -1,3 +1,7 @@
+import os 
+import sys 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
 from src.zoo.train import fit, rtdetr_train_dataloader, rtdetr_val_dataloader
 from src.nn.rtdetr.utils import get_optim_params
 from src.misc import dist
@@ -40,13 +44,15 @@ def main1():
     else:
         solver.fit()
 
+
 # custom implement
 def main2():
-    weight_path = 'output/rtdetr_r18vd_6x_coco/3.pth'
-    save_dir = "output/rtdetr_r18vd_6x_coco"
+    dist.init_distributed()
+    
+    weight_path = None
+    save_dir = "output/rtdetr_r50vd_6x_coco"
 
-    model = rtdetr_zoo.rtdetr_r18vd()
-    model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
+    model = rtdetr_zoo.rtdetr_r50vd()
 
     params= [{'params': '^(?=.*backbone)(?=.*norm).*$', 'lr': 0.00001, 'weight_decay': 0.},
              {'params': '^(?=.*backbone)(?!.*norm).*$', 'lr': 0.00001},
@@ -54,8 +60,8 @@ def main2():
     
     optimizer = AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    train_dataloader = rtdetr_train_dataloader(batch_size=8, num_workers=2)
-    val_dataloader = rtdetr_val_dataloader(batch_size=4, range_num=200, num_workers=2)
+    train_dataloader = rtdetr_train_dataloader(batch_size=16, num_workers=4)
+    val_dataloader = rtdetr_val_dataloader(batch_size=16, range_num=1000, num_workers=4)
 
     fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, train_dataloader=train_dataloader, val_dataloader=val_dataloader, use_amp=True, use_ema=True)
 

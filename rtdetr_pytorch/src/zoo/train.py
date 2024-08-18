@@ -39,7 +39,6 @@ def fit(model,
     if val_dataloader == None:
         val_dataloader = rtdetr_val_dataloader()
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     scaler = GradScaler() if use_amp == True else None
     ema_model = ModelEMA(model, decay=0.9999, warmups=2000) if use_ema == True else None
@@ -48,9 +47,20 @@ def fit(model,
     if weight_path != None:
         last_epoch = load_tuning_state(weight_path, model, ema_model)
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     model.to(device)
     ema_model.to(device) if use_ema == True else None
     criterion.to(device)  
+    
+    #dist wrap modeln loader must do after model.to(device)
+    if dist.is_dist_available_and_initialized():
+        # model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
+        # ema_model = dist.warp_model(ema_model, find_unused_parameters=True, sync_bn=True) if use_ema == True else None
+        # criterion = dist.warp_model(criterion, find_unused_parameters=True, sync_bn=True)
+        train_dataloader = dist.warp_loader(train_dataloader)
+        val_dataloader = dist.warp_loader(val_dataloader)
+        model = dist.warp_model(model, find_unused_parameters=False, sync_bn=True)
 
     lr_scheduler = lr_schedulers.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
     
