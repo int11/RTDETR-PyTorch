@@ -21,13 +21,11 @@ class SmoothedValue(object):
     window or the global series average.
     """
 
-    def __init__(self, window_size=20, fmt=None):
-        if fmt is None:
-            fmt = "{median:.4f} ({global_avg:.4f})"
+    def __init__(self, window_size=20, fmt="{value:.4f} ({global_avg:.4f})"):
+        self.fmt = fmt
         self.deque = deque(maxlen=window_size)
         self.total = 0.0
         self.count = 0
-        self.fmt = fmt
 
     def update(self, value, n=1):
         self.deque.append(value)
@@ -149,8 +147,13 @@ def reduce_dict(input_dict, average=True) -> Dict[str, torch.Tensor]:
 
 
 class MetricLogger(object):
-    def __init__(self, delimiter="\t"):
+    MB = 1024.0 * 1024.0
+
+    def __init__(self, iterable, print_freq=100, header='', delimiter="  "):
         self.meters = defaultdict(SmoothedValue)
+        self.iterable = iterable
+        self.header = header
+        self.print_freq = print_freq
         self.delimiter = delimiter
 
     def update(self, **kwargs):
@@ -183,60 +186,30 @@ class MetricLogger(object):
     def add_meter(self, name, meter):
         self.meters[name] = meter
 
-    def log_every(self, iterable, print_freq, header=None):
+    def log_every(self):
         i = 0
-        if not header:
-            header = ''
-        start_time = time.time()
-        end = time.time()
+        t = time.time()
         iter_time = SmoothedValue(fmt='{avg:.4f}')
-        data_time = SmoothedValue(fmt='{avg:.4f}')
-        space_fmt = ':' + str(len(str(len(iterable)))) + 'd'
-        if torch.cuda.is_available():
-            log_msg = self.delimiter.join([
-                header,
-                '[{0' + space_fmt + '}/{1}]',
-                'eta: {eta}',
-                '{meters}',
-                'time: {time}',
-                'data: {data}',
-                'max mem: {memory:.0f}'
-            ])
-        else:
-            log_msg = self.delimiter.join([
-                header,
-                '[{0' + space_fmt + '}/{1}]',
-                'eta: {eta}',
-                '{meters}',
-                'time: {time}',
-                'data: {data}'
-            ])
-        MB = 1024.0 * 1024.0
-        for obj in iterable:
-            data_time.update(time.time() - end)
+
+        for obj in self.iterable:
             yield obj
-            iter_time.update(time.time() - end)
-            if i % print_freq == 0 or i == len(iterable) - 1:
-                eta_seconds = iter_time.global_avg * (len(iterable) - i)
-                eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-                if torch.cuda.is_available():
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time),
-                        memory=torch.cuda.max_memory_allocated() / MB))
-                else:
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time)))
-                    
-                vechook.hookappend([i, eta_string, str(iter_time), str(data_time), torch.cuda.max_memory_allocated() / MB], ['iterable', 'eta', 'iter_time', 'data_time', 'cuda.max_memory_allocated'])
-                
+            iter_time.update(time.time() - t)
+            t = time.time()
             i += 1
-            end = time.time()
-        total_time = time.time() - start_time
-        total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-        print('{} Total time: {} ({:.4f} s / it)'.format(
-            header, total_time_str, total_time / len(iterable)))
+
+            if i % self.print_freq == 0 or i == len(self.iterable) - 1 or i == 1:
+
+                eta_seconds = iter_time.global_avg * (len(self.iterable) - i)
+
+                tmp = self.delimiter.join([self.header,
+                                     f"[{i:>{len(str(len(self.iterable)))}}/{len(self.iterable)}]",
+                                     f"eta: {datetime.timedelta(seconds=int(eta_seconds))}",
+                                     f"time: {iter_time}",
+                                     str(self)])
+                print(tmp)
+
+
+
+        total_time_str = str(datetime.timedelta(seconds=int(iter_time.total)))
+        print(f'{self.header} Total time: {total_time_str} ({iter_time.total / len(self.iterable):.4f} s / it)')
 

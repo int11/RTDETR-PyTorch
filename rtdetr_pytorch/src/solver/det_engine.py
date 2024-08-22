@@ -27,11 +27,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     ema = kwargs.get('ema', None)
     scaler = kwargs.get('scaler', None)
 
-    i = 0
-    totle_t = 0
-    t = time.time()
+    metric_logger = MetricLogger(data_loader, header=f'Epoch: [{epoch}]')
 
-    for samples, targets in data_loader:
+    for samples, targets in metric_logger.log_every():
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -39,13 +37,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             with torch.autocast(device_type=device.type, cache_enabled=True):
                 outputs = model(samples, targets)
             
-            # fixed, need to commit main
-            with torch.autocast(device_type=device.type, enabled=True):
+            with torch.autocast(device_type=device.type, enabled=False):
                 loss_dict = criterion(outputs, targets)
 
             loss = sum(loss_dict.values())
             scaler.scale(loss).backward()
-            
+
             if max_norm > 0:
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
@@ -74,20 +71,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         loss_dict_reduced = reduce_dict(loss_dict)
         loss_value = sum(loss_dict_reduced.values())
 
-        if i % 100 == 0:
-            totle_t = time.time() - t
-            print(epoch, i, len(data_loader), loss, totle_t, totle_t / (data_loader.batch_size * torch.cuda.device_count() * 100)) 
-            t = time.time()
-            totle_t = 0
+        metric_logger.update(loss=loss_value, lr=optimizer.param_groups[0]["lr"])
 
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             print(loss_dict_reduced)
             sys.exit(1)
-
-        i += 1
-
-
 
 
 @torch.no_grad()

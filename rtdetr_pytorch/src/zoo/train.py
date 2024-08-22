@@ -78,10 +78,7 @@ def fit(model,
         train_one_epoch(model, criterion, train_dataloader, optimizer, device, epoch, clip_max_norm=0.1, print_freq=100, ema=ema_model, scaler=scaler)
 
         lr_scheduler.step()
-        
-        if os.path.exists(save_dir) == False:
-            os.makedirs(save_dir)
-            
+
         dist.save_on_master(state_dict(epoch, model, ema_model), os.path.join(save_dir, f'{epoch}.pth'))
 
         module = ema_model.module if use_amp == True else model
@@ -112,16 +109,14 @@ def val(model, weight_path, criterion=None, val_dataloader=None):
     model.eval()
     criterion.eval()
 
-    metric_logger = MetricLogger(delimiter="  ")
-
-    header = 'Test:'
+    metric_logger = MetricLogger(val_dataloader, header='Test:',)
 
     iou_types = postprocessor.iou_types
     coco_evaluator = CocoEvaluator(base_ds, iou_types)
 
     panoptic_evaluator = None
 
-    for samples, targets in metric_logger.log_every(val_dataloader, 10, header):
+    for samples, targets in metric_logger.log_every():
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -164,7 +159,6 @@ def rtdetr_r18vd_train():
     output_dir = "./output/rtdetr_r18vd_6x_coco"
 
     model = rtdetr.rtdetr_r18vd()
-    model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
 
     params= [{'params': '^(?=.*backbone)(?=.*norm).*$', 'lr': 0.00001, 'weight_decay': 0.},
              {'params': '^(?=.*backbone)(?!.*norm).*$', 'lr': 0.00001},
@@ -180,7 +174,6 @@ def rtdetr_r34vd_train():
     output_dir = "./output/rtdetr_r34vd_6x_coco"
 
     model = rtdetr.rtdetr_r34vd()
-    model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
 
     params = [{'params': '^(?=.*backbone)(?=.*norm|bn).*$', 'weight_decay': 0., 'lr': 0.00001},
               {'params': '^(?=.*backbone)(?!.*norm|bn).*$', 'lr': 0.00001}, 
@@ -196,7 +189,6 @@ def rtdetr_r50vd_train():
     output_dir = "./output/rtdetr_r50vd_6x_coco"
 
     model = rtdetr.rtdetr_r50vd()
-    model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
 
     params= [{'params': 'backbone', 'lr': 0.00001},
              {'params': '^(?=.*encoder(?=.*bias|.*norm.*weight)).*$', 'weight_decay': 0.},
@@ -212,7 +204,6 @@ def rtdetr_r50vd_m_train():
     output_dir = "./output/rtdetr_r50vd_m_6x_coco"
 
     model = rtdetr.rtdetr_r50vd_m()
-    model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
 
     params= [{'params': 'backbone', 'lr': 0.00001},
              {'params': '^(?=.*encoder(?=.*bias|.*norm.*weight)).*$', 'weight_decay': 0.},
@@ -228,7 +219,6 @@ def rtdetr_r101vd_train():
     output_dir = "./output/rtdetr_r101vd_6x_coco"
 
     model = rtdetr.rtdetr_r101vd()
-    model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
 
     params= [{'params': 'backbone', 'lr': 0.00001},
              {'params': '^(?=.*encoder(?=.*bias|.*norm.*weight)).*$', 'weight_decay': 0.},

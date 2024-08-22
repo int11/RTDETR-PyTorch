@@ -17,42 +17,13 @@ from rtest.utils import *
 import torch.utils.data as data
 
 
-# original implement
-def main1():
-    Setting.print_shape = True
-    #변수 초기화 'Only support from_scrach or resume or tuning at one time'
-    config = 'rtdetr_pytorch/configs/rtdetr/rtdetr_r18vd_6x_coco.yml'  #설정 파일 경로
-    resume = None  # resume = '../checkpoint'
-    tuning = 'https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetr_r18vd_5x_coco_objects365_from_paddle.pth' # 저장된 가중치 경로
-    amp = True # 자동 혼합 정밀도(Automatic Mixed Precision, AMP) FP16 FP32 섞어서 사용. 메모리 사용 감소, 에너지 사용 감소, 계산 속도 향상의 장점
-    test_only = False
-
-    #분산 프로세스 초기화
-    dist.init_distributed()
-
-    #첫번재 인자로 받은 설정파일에 이후의 인자들을 merge 하여 설정파일 생성
-    cfg = YAMLConfig(
-            config,
-            resume=resume, 
-            use_amp=amp,
-            tuning=tuning)
-
-    solver = DetSolver(cfg)
-
-    if test_only:
-        solver.val()
-    else:
-        solver.fit()
-
-
-# custom implement
-def main2():
+def main():
     dist.init_distributed()
     
     weight_path = None
-    save_dir = "output/rtdetr_r50vd_6x_coco"
-
-    model = rtdetr_zoo.rtdetr_r50vd()
+    save_dir = "output/rtdetr_r18vd_6x_coco"
+    
+    model = rtdetr_zoo.rtdetr_r18vd()
 
     params= [{'params': '^(?=.*backbone)(?=.*norm).*$', 'lr': 0.00001, 'weight_decay': 0.},
              {'params': '^(?=.*backbone)(?!.*norm).*$', 'lr': 0.00001},
@@ -60,13 +31,13 @@ def main2():
     
     optimizer = AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
-    train_dataloader = rtdetr_train_dataloader(batch_size=16, num_workers=4)
-    val_dataloader = rtdetr_val_dataloader(batch_size=16, range_num=1000, num_workers=4)
+    train_dataloader = rtdetr_train_dataloader(batch_size=8, num_workers=0)
+    val_dataloader = rtdetr_val_dataloader(batch_size=4, range_num=1000, num_workers=0)
 
     fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, train_dataloader=train_dataloader, val_dataloader=val_dataloader, use_amp=True, use_ema=True)
 
 
 if __name__ == '__main__':
-    main2()
+    main()
 
     

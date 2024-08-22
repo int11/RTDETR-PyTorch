@@ -86,9 +86,11 @@ def is_main_process():
     return get_rank() == 0
 
 
-def save_on_master(*args, **kwargs):
+def save_on_master(obj, file_path):
     if is_main_process():
-        torch.save(*args, **kwargs)
+        save_dir = os.path.dirname(file_path)
+        os.makedirs(save_dir, exist_ok=True)
+        torch.save(obj, file_path)
 
 
 def warp_model(model, find_unused_parameters=False, sync_bn=False,):
