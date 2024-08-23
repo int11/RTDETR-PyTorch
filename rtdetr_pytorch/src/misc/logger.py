@@ -147,8 +147,6 @@ def reduce_dict(input_dict, average=True) -> Dict[str, torch.Tensor]:
 
 
 class MetricLogger(object):
-    MB = 1024.0 * 1024.0
-
     def __init__(self, iterable, print_freq=100, header='', delimiter="  "):
         self.meters = defaultdict(SmoothedValue)
         self.iterable = iterable
@@ -197,8 +195,7 @@ class MetricLogger(object):
             t = time.time()
             i += 1
 
-            if i % self.print_freq == 0 or i == len(self.iterable) - 1 or i == 1:
-
+            if i == 1 or i % self.print_freq == 0 or i == len(self.iterable) - 1:
                 eta_seconds = iter_time.global_avg * (len(self.iterable) - i)
 
                 tmp = self.delimiter.join([self.header,
@@ -208,8 +205,6 @@ class MetricLogger(object):
                                      str(self)])
                 print(tmp)
 
-
-
-        total_time_str = str(datetime.timedelta(seconds=int(iter_time.total)))
-        print(f'{self.header} Total time: {total_time_str} ({iter_time.total / len(self.iterable):.4f} s / it)')
+        total_time = datetime.timedelta(seconds=int(iter_time.total))
+        print(f'{self.header} Total time: {total_time} ({iter_time.total / len(self.iterable):.4f} s / it)')
 

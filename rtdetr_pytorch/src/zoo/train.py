@@ -42,6 +42,7 @@ def fit(model,
 
     scaler = GradScaler() if use_amp == True else None
     ema_model = ModelEMA(model, decay=0.9999, warmups=2000) if use_ema == True else None
+    lr_scheduler = lr_schedulers.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
 
     last_epoch = 0
     if weight_path != None:
@@ -62,7 +63,6 @@ def fit(model,
         val_dataloader = dist.warp_loader(val_dataloader)
         model = dist.warp_model(model, find_unused_parameters=False, sync_bn=True)
 
-    lr_scheduler = lr_schedulers.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
     
     print("Start training")
 
@@ -75,44 +75,49 @@ def fit(model,
         if dist.is_dist_available_and_initialized():
             train_dataloader.sampler.set_epoch(epoch)
         
-        train_one_epoch(model, criterion, train_dataloader, optimizer, device, epoch, clip_max_norm=0.1, print_freq=100, ema=ema_model, scaler=scaler)
+        train_one_epoch(model, criterion, train_dataloader, optimizer, device, epoch, max_norm=0.1, print_freq=100, ema=ema_model, scaler=scaler)
 
         lr_scheduler.step()
 
         dist.save_on_master(state_dict(epoch, model, ema_model), os.path.join(save_dir, f'{epoch}.pth'))
 
-        module = ema_model.module if use_amp == True else model
-        test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
+        #TODO eval bug
+        # module = ema_model.module if use_ema == True else model
+        # test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
 
+@torch.no_grad()
 def val(model, weight_path, criterion=None, val_dataloader=None):
     if criterion == None:
         criterion = rtdetr_criterion()
     if val_dataloader == None:
         val_dataloader = rtdetr_val_dataloader()
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-    model.to(device)
-    if weight_path != None:
-        load_tuning_state(weight_path, model)
-
-    criterion.to(device) 
-
-    base_ds = get_coco_api_from_dataset(val_dataloader.dataset)
-    postprocessor = RTDETRPostProcessor(num_top_queries= 300)
-
     model.eval()
     criterion.eval()
 
-    metric_logger = MetricLogger(val_dataloader, header='Test:',)
-
+    base_ds = get_coco_api_from_dataset(val_dataloader.dataset)
+    postprocessor = RTDETRPostProcessor(num_top_queries=300, remap_mscoco_category=val_dataloader.dataset.remap_mscoco_category)
     iou_types = postprocessor.iou_types
     coco_evaluator = CocoEvaluator(base_ds, iou_types)
+
+
+    if weight_path != None:
+        state = torch.hub.load_state_dict_from_url(weight_path, map_location='cpu') if 'http' in weight_path else torch.load(weight_path, map_location='cpu')
+        if 'ema' in state:
+            model.load_state_dict(state['ema']['module'], strict=False)
+        else:
+            model.load_state_dict(state['model'], strict=False)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
+    criterion.to(device)
+
+    metric_logger = MetricLogger(val_dataloader, header='Test:',)
 
     panoptic_evaluator = None
 
@@ -125,11 +130,9 @@ def val(model, weight_path, criterion=None, val_dataloader=None):
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)        
         results = postprocessor(outputs, orig_target_sizes)
 
-
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
         if coco_evaluator is not None:
             coco_evaluator.update(res)
-
 
 
     metric_logger.synchronize_between_processes()

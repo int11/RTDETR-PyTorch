@@ -73,7 +73,7 @@ def rtdetr_val_dataloader(
         val_dataset=None,
         range_num=None,
         batch_size=4,
-        shuffle=True,
+        shuffle=False,
         num_workers=4,
         collate_fn=default_collate_fn,
         drop_last=False,
