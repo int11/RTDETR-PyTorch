@@ -2,19 +2,24 @@ import os
 import sys 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from src.zoo.train import fit, rtdetr_train_dataloader, rtdetr_val_dataloader
-from src.nn.rtdetr.utils import get_optim_params
+from src.zoo import model as rtdetr_zoo
+from src.zoo import val, fit, rtdetr_val_dataset, rtdetr_train_dataset, rtdetr_train_dataloader, rtdetr_val_dataloader, rtdetr_r50vd_optimizer
+
+from src.data.coco.coco_dataset import CocoDetection
 from src.misc import dist
 
 from rtest.utils import *
 
-from src.core import YAMLConfig
-from src.solver.det_solver import DetSolver
-from src.optim.optim import AdamW
-from src.zoo import model as rtdetr_zoo
-from rtest.utils import *
 
-import torch.utils.data as data
+
+def validate():
+    weight_path = "output/rtdetr_r18vd_6x_coco/47.pth"
+    model = rtdetr_zoo.rtdetr_r18vd()
+
+    val_dataset = rtdetr_val_dataset(dataset_class=CocoDetection)
+    val_dataloader = rtdetr_val_dataloader(dataset=val_dataset, batch_size=16, num_workers=0)
+
+    val(model, weight_path, val_dataloader=val_dataloader)
 
 
 def main():
@@ -24,12 +29,8 @@ def main():
     save_dir = "output/rtdetr_r18vd_6x_coco"
     
     model = rtdetr_zoo.rtdetr_r18vd()
-
-    params= [{'params': '^(?=.*backbone)(?=.*norm).*$', 'lr': 0.00001, 'weight_decay': 0.},
-             {'params': '^(?=.*backbone)(?!.*norm).*$', 'lr': 0.00001},
-             {'params': '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bias)).*$', 'weight_decay': 0.}]
+    optimizer = rtdetr_r50vd_optimizer(model=model)
     
-    optimizer = AdamW(params=get_optim_params(params, model), lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001)
 
     train_dataloader = rtdetr_train_dataloader(batch_size=8, num_workers=0)
     val_dataloader = rtdetr_val_dataloader(batch_size=4, range_num=1000, num_workers=0)
@@ -38,6 +39,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    validate()
 
     

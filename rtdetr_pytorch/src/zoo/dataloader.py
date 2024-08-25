@@ -6,9 +6,11 @@ from src.data import transforms as T
 
 def rtdetr_train_dataset(
         img_folder="./dataset/coco/train2017/",
-        ann_file="./dataset/coco/annotations/instances_train2017.json"):
+        ann_file="./dataset/coco/annotations/instances_train2017.json",
+        range_num=None,
+        dataset_class=CocoDetection_shared_memory):
     
-    train_dataset = CocoDetection_shared_memory(
+    train_dataset = dataset_class(
         img_folder=img_folder,
         ann_file=ann_file,
         transforms = T.Compose([T.RandomPhotometricDistort(p=0.5), 
@@ -25,12 +27,15 @@ def rtdetr_train_dataset(
                                 T.ConvertBox(out_fmt='cxcywh', normalize=True)]),
         return_masks=False,
         remap_mscoco_category=True)
+    
+    if range_num != None:
+        train_dataset = torch.utils.data.Subset(train_dataset, range(range_num))
+
     return train_dataset
 
 
 def rtdetr_train_dataloader( 
-        train_dataset=None,
-        range_num=None,
+        dataset=None,
         batch_size=4,
         shuffle=True, 
         num_workers=4,
@@ -38,14 +43,11 @@ def rtdetr_train_dataloader(
         drop_last=True,
         **kwargs):
     
-    if train_dataset == None:
-        train_dataset = rtdetr_train_dataset()
-    
-    if range_num != None:
-        train_dataset = torch.utils.data.Subset(train_dataset, range(range_num))
+    if dataset == None:
+        dataset = rtdetr_train_dataset()
 
     return DataLoader(
-        train_dataset, 
+        dataset, 
         batch_size=batch_size, 
         shuffle=shuffle, 
         num_workers=num_workers, 
@@ -56,9 +58,11 @@ def rtdetr_train_dataloader(
 
 def rtdetr_val_dataset(
         img_folder="./dataset/coco/val2017/",
-        ann_file="./dataset/coco/annotations/instances_val2017.json"):
+        ann_file="./dataset/coco/annotations/instances_val2017.json",
+        range_num=None,
+        dataset_class=CocoDetection_shared_memory):
     
-    val_dataset = CocoDetection_shared_memory(
+    val_dataset = dataset_class(
         img_folder=img_folder,
         ann_file=ann_file,
         transforms=T.Compose([T.Resize(size=[640, 640]), 
@@ -66,12 +70,15 @@ def rtdetr_val_dataset(
                                 T.ConvertDtype()]),
         return_masks=False,
         remap_mscoco_category=True)
+    
+    if range_num != None:
+        val_dataset = torch.utils.data.Subset(val_dataset, range(range_num))
+
     return val_dataset
         
 
 def rtdetr_val_dataloader(
-        val_dataset=None,
-        range_num=None,
+        dataset=None,
         batch_size=4,
         shuffle=False,
         num_workers=4,
@@ -79,15 +86,11 @@ def rtdetr_val_dataloader(
         drop_last=False,
         **kwargs):
     
-
-    if val_dataset == None:
-        val_dataset = rtdetr_val_dataset()
-    
-    if range_num != None:
-        val_dataset = torch.utils.data.Subset(val_dataset, range(range_num))
+    if dataset == None:
+        dataset = rtdetr_val_dataset()
 
     return DataLoader(
-        val_dataset, 
+        dataset, 
         batch_size=batch_size, 
         shuffle=shuffle, 
         num_workers=num_workers, 
