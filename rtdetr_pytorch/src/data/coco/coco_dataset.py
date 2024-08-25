@@ -24,7 +24,7 @@ from pycocotools import mask as coco_mask
 from src.core import register
 from pycocotools.coco import COCO
 
-__all__ = ['CocoDetection']
+__all__ = ['CocoDetection', 'CocoDetection_share_memory']
 
 
 @register
@@ -86,18 +86,19 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         return s 
 
 
-class CocoDetection_shared_memory(torchvision.datasets.VisionDataset):
-    def __init__(self, img_folder, ann_file, transforms, return_masks, remap_mscoco_category=False):
-        super(CocoDetection_shared_memory, self).__init__(img_folder)
+class CocoDetection_share_memory(torchvision.datasets.VisionDataset):
+    def __init__(self, img_folder, ann_file, transforms, return_masks, remap_mscoco_category=False, share_memory=True):
+        super(CocoDetection_share_memory, self).__init__(img_folder)
 
         coco = COCO(ann_file)
 
         index = sorted(coco.imgs.keys())
         self.imgs_info = [coco.imgs[i] for i in index]
         self.anns = [coco.imgToAnns[i] for i in index]
-        
-        self.imgs_info = TorchSerializedList(self.imgs_info)
-        self.anns = TorchSerializedList(self.anns)
+
+        if share_memory:
+            self.imgs_info = TorchSerializedList(self.imgs_info)
+            self.anns = TorchSerializedList(self.anns)
 
         self._transforms = transforms
         os.makedirs(self.root, exist_ok=True)

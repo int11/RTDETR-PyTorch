@@ -11,7 +11,6 @@ from src.misc import dist
 from rtest.utils import *
 
 
-
 def validate():
     weight_path = "output/rtdetr_r18vd_6x_coco/47.pth"
     model = rtdetr_zoo.rtdetr_r18vd()
@@ -22,7 +21,7 @@ def validate():
     val(model, weight_path, val_dataloader=val_dataloader)
 
 
-def main():
+def train():
     dist.init_distributed()
     
     weight_path = None
@@ -39,6 +38,4 @@ def main():
 
 
 if __name__ == '__main__':
-    validate()
-
-    
+    train()

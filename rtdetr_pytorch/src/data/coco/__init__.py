@@ -1,5 +1,6 @@
 from .coco_dataset import (
     CocoDetection, 
+    CocoDetection_share_memory,
     mscoco_category2label,
     mscoco_label2category,
     mscoco_category2name,

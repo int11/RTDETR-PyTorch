@@ -2,21 +2,15 @@ from collections import defaultdict
 import psutil
 from tabulate import tabulate
 import pickle
-import sys
 import torch
 import time
 import torch
 import multiprocessing as mp
 
-from src.data.utils import TorchSerializedList
-from src.data.dataloader import DataLoader, default_collate_fn
-from src.data import transforms as T
-from src.data.coco.coco_dataset import CocoDetection, CocoDetection_shared_memory
 from multiprocessing import Manager
-
+from src.zoo import *
 from rtest.utils import *
-from rtest.utils import *
-import torch.utils.data as data
+from src.data.coco import CocoDetection, CocoDetection_share_memory
 
 """
 testing memory usage of dataloader.
@@ -79,55 +73,7 @@ class MemoryMonitor():
         return res
 
 
-def test_dataset(
-        range_num = None,
-        img_folder="./dataset/coco/train2017/",
-        ann_file="./dataset/coco/annotations/instances_train2017.json"):
-    
-    transforms = [
-        T.RandomPhotometricDistort(p=0.5),
-        T.RandomZoomOut(fill=0),
-        T.RandomIoUCrop(p=0.8),
-        T.SanitizeBoundingBox(min_size=1),
-        T.RandomHorizontalFlip(),
-        T.Resize(size=[640, 640]),
-        # transforms.Resize(size=639, max_size=640),
-        # # transforms.PadToSize(spatial_size=640),
-        T.ToImageTensor(),
-        T.ConvertDtype(),
-        T.SanitizeBoundingBox(min_size=1),
-        T.ConvertBox(out_fmt='cxcywh', normalize=True)]
-    
-    train_dataset = CocoDetection_shared_memory(
-        img_folder=img_folder,
-        ann_file=ann_file,
-        transforms = T.Compose(transforms),
-        return_masks=False,
-        remap_mscoco_category=True)
-    if range_num is not None:
-        train_dataset = torch.utils.data.Subset(train_dataset, range(range_num))
-    return train_dataset
-
-
-def test_dataloader(
-        dataset,
-        worker_init_fn=None,
-        batch_size=4,
-        shuffle=True,
-        num_workers=4):
-
-    return DataLoader(
-        dataset=dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        collate_fn=default_collate_fn,
-        drop_last=True,
-        worker_init_fn=worker_init_fn)
-
-from functools import partial
-
-def main():
+def main(**kwargs):
     def hook_pid(worker_id):
         pid = os.getpid()
         monitor.pids.append(pid)
@@ -136,8 +82,8 @@ def main():
     monitor = MemoryMonitor()
     monitor.pids = Manager().list(monitor.pids)
 
-    dataloader = test_dataloader(
-        dataset=test_dataset(), 
+    dataloader = rtdetr_train_dataloader(
+        dataset=rtdetr_train_dataset(**kwargs), 
         worker_init_fn=hook_pid,
         batch_size=32, 
         num_workers=2)
@@ -155,7 +101,7 @@ def main():
             print(f"iteration : {i} / {len(dataloader)}, time : {time.time() - t:.3f}")
             t = time.time()
 
-def main2():
+def main2(**kwargs):
     def worker(_, dataset: torch.utils.data.Dataset):
         while True:
             for sample in dataset:
@@ -164,7 +110,7 @@ def main2():
     start_method = 'fork'
     mp.set_start_method(start_method)
     monitor = MemoryMonitor()
-    ds = test_dataset()
+    ds = rtdetr_train_dataset(**kwargs)
     print(monitor.table())
     if start_method == "forkserver":
         # Reduce 150M-per-process USS due to "import torch".
@@ -184,4 +130,6 @@ def main2():
         ctx.join()
 
 if __name__ == '__main__':
-    main()
+    # main(dataset_class=CocoDetection, range_num=30000)
+    # main(dataset_class=CocoDetection_share_memory, share_memory=False, range_num=30000)
+    main(dataset_class=CocoDetection_share_memory, share_memory=True, range_num=30000)
