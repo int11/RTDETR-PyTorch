@@ -11,31 +11,28 @@ from src.misc import dist
 from rtest.utils import *
 
 
-def validate():
-    weight_path = "output/rtdetr_r18vd_6x_coco/47.pth"
-    model = rtdetr_zoo.rtdetr_r18vd()
-
-    val_dataset = rtdetr_val_dataset(dataset_class=CocoDetection)
-    val_dataloader = rtdetr_val_dataloader(dataset=val_dataset, batch_size=16, num_workers=0)
-
-    val(model, weight_path, val_dataloader=val_dataloader)
-
-
-def train():
+def main(test_only=False):
     dist.init_distributed()
     
-    weight_path = None
+    weight_path = "output/rtdetr_r18vd_6x_coco/78.pth"
     save_dir = "output/rtdetr_r18vd_6x_coco"
-    
+    batch_size = 32
+    num_workers = 4
+
+
     model = rtdetr_zoo.rtdetr_r18vd()
-    optimizer = rtdetr_r50vd_optimizer(model=model)
     
+    #TODO CocoDetection_share_memory eval bug
+    val_dataset = rtdetr_val_dataset(dataset_class=CocoDetection)
+    val_dataloader = rtdetr_val_dataloader(dataset=val_dataset, batch_size=batch_size, num_workers=num_workers)
 
-    train_dataloader = rtdetr_train_dataloader(batch_size=8, num_workers=0)
-    val_dataloader = rtdetr_val_dataloader(batch_size=4, range_num=1000, num_workers=0)
-
-    fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, train_dataloader=train_dataloader, val_dataloader=val_dataloader, use_amp=True, use_ema=True)
+    if test_only:
+        val(model, weight_path, val_dataloader=val_dataloader)
+    else:
+        optimizer = rtdetr_r50vd_optimizer(model=model)
+        train_dataloader = rtdetr_train_dataloader(batch_size=batch_size, num_workers=num_workers)
+        fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, train_dataloader=train_dataloader, val_dataloader=val_dataloader, use_amp=True, use_ema=True, epoch=100)
 
 
 if __name__ == '__main__':
-    train()
+    main(False)

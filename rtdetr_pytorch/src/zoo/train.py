@@ -1,21 +1,17 @@
 import os
 import time
 import datetime
-import json
-
 
 from torch.cuda.amp import GradScaler
-from src.zoo.dataloader import rtdetr_train_dataloader, rtdetr_val_dataloader
-from src.zoo.criterion import rtdetr_criterion
+from src.zoo import rtdetr_train_dataloader, rtdetr_val_dataloader, rtdetr_criterion
+
 from src.data.coco.coco_eval import CocoEvaluator
 from src.misc.logger import MetricLogger
 from src.solver.det_engine import train_one_epoch
 from src.data.coco.coco_utils import get_coco_api_from_dataset
-from src.optim.optim import AdamW
 from src.optim.ema import ModelEMA
 
 from src.nn.rtdetr.rtdetr_postprocessor import RTDETRPostProcessor
-from src.nn.rtdetr import rtdetr
 from src.nn.rtdetr.utils import *
 
 import src.misc.dist as dist
@@ -28,7 +24,7 @@ def fit(model,
         criterion=None,
         train_dataloader=None, 
         val_dataloader=None,
-        epoch=72,
+        epoch=73,
         use_amp=True,
         use_ema=True):
 

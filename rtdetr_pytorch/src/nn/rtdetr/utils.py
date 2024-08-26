@@ -5,7 +5,7 @@ import math
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F 
-from datetime import datetime
+import datetime
 import re
 import src.misc.dist as dist
 from typing import Dict
@@ -126,7 +126,7 @@ def state_dict(last_epoch, model, ema_model=None):
     '''
     state = {}
     state['model'] = dist.de_parallel(model).state_dict()
-    state['date'] = datetime.now().isoformat()
+    state['date'] = datetime.datetime.now().isoformat()
     state['last_epoch'] = last_epoch
 
     if ema_model is not None:

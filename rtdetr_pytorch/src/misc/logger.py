@@ -187,7 +187,7 @@ class MetricLogger(object):
     def log_every(self):
         i = 0
         t = time.time()
-        iter_time = SmoothedValue(fmt='{avg:.4f}')
+        iter_time = SmoothedValue(window_size=100, fmt='{avg:.4f}')
 
         for obj in self.iterable:
             yield obj
@@ -201,7 +201,7 @@ class MetricLogger(object):
                 tmp = self.delimiter.join([self.header,
                                      f"[{i:>{len(str(len(self.iterable)))}}/{len(self.iterable)}]",
                                      f"eta: {datetime.timedelta(seconds=int(eta_seconds))}",
-                                     f"time: {iter_time}",
+                                     f"time: {datetime.timedelta(seconds=int(sum(iter_time.deque)))}",
                                      str(self)])
                 print(tmp)
 
