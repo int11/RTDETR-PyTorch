@@ -1,21 +1,24 @@
 import os
+import sys
 import time
+import math
 import datetime
+from typing import Iterable
 
+import torch
 from torch.cuda.amp import GradScaler
+import torch.optim.lr_scheduler as lr_schedulers
+import torch.amp 
+
 from src.zoo import rtdetr_train_dataloader, rtdetr_val_dataloader, rtdetr_criterion
-
 from src.data.coco.coco_eval import CocoEvaluator
-from src.misc.logger import MetricLogger
-from src.solver.det_engine import train_one_epoch
 from src.data.coco.coco_utils import get_coco_api_from_dataset
+from src.misc import MetricLogger, SmoothedValue, reduce_dict
 from src.optim.ema import ModelEMA
-
 from src.nn.rtdetr.rtdetr_postprocessor import RTDETRPostProcessor
 from src.nn.rtdetr.utils import *
-
 import src.misc.dist as dist
-import torch.optim.lr_scheduler as lr_schedulers
+
 
 def fit(model, 
         weight_path, 
@@ -77,13 +80,74 @@ def fit(model,
 
         dist.save_on_master(state_dict(epoch, model, ema_model), os.path.join(save_dir, f'{epoch}.pth'))
 
-        #TODO eval bug
-        # module = ema_model.module if use_ema == True else model
-        # test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
+        module = ema_model.module if use_ema == True else model
+        test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
+
+
+def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+                    data_loader: Iterable, optimizer: torch.optim.Optimizer,
+                    device: torch.device, epoch: int, max_norm: float = 0, **kwargs):
+    model.train()
+    criterion.train()
+    
+    ema = kwargs.get('ema', None)
+    scaler = kwargs.get('scaler', None)
+
+    metric_logger = MetricLogger(data_loader, header=f'Epoch: [{epoch}]')
+    metric_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
+
+    for samples, targets in metric_logger.log_every():
+        samples = samples.to(device)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+        if scaler is not None:
+            with torch.autocast(device_type=device.type, cache_enabled=True):
+                outputs = model(samples, targets)
+            
+            with torch.autocast(device_type=device.type, enabled=False):
+                loss_dict = criterion(outputs, targets)
+
+            loss = sum(loss_dict.values())
+            scaler.scale(loss).backward()
+
+            if max_norm > 0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
+
+        else:
+            outputs = model(samples, targets)
+            loss_dict = criterion(outputs, targets)
+            
+            loss = sum(loss_dict.values())
+            optimizer.zero_grad()
+            loss.backward()
+            
+            if max_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+
+            optimizer.step()
+        
+        # ema 
+        if ema != None:
+            ema.update(model)
+
+        loss_dict_reduced = reduce_dict(loss_dict)
+        loss_value = sum(loss_dict_reduced.values())
+
+        metric_logger.update(loss=loss_value, lr=optimizer.param_groups[0]["lr"])
+
+        if not math.isfinite(loss_value):
+            print("Loss is {}, stopping training".format(loss_value))
+            print(loss_dict_reduced)
+            sys.exit(1)
 
 
 @torch.no_grad()

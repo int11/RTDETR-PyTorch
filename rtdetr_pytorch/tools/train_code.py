@@ -22,15 +22,15 @@ def main(test_only=False):
 
     model = rtdetr_zoo.rtdetr_r18vd()
     
-    #TODO CocoDetection_share_memory eval bug
+    #TODO There is a slow on a dataset that is not a CocoDetection class, need to fix this
     val_dataset = rtdetr_val_dataset(dataset_class=CocoDetection)
     val_dataloader = rtdetr_val_dataloader(dataset=val_dataset, batch_size=batch_size, num_workers=num_workers)
 
     if test_only:
         val(model, weight_path, val_dataloader=val_dataloader)
     else:
-        optimizer = rtdetr_r50vd_optimizer(model=model)
         train_dataloader = rtdetr_train_dataloader(batch_size=batch_size, num_workers=num_workers)
+        optimizer = rtdetr_r50vd_optimizer(model=model)
         fit(model=model, weight_path=weight_path, optimizer=optimizer, save_dir=save_dir, train_dataloader=train_dataloader, val_dataloader=val_dataloader, use_amp=True, use_ema=True, epoch=100)
 
 
