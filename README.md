@@ -1,17 +1,11 @@
-## TODO
-<details>
-<summary> see details </summary>
+## RT_DETR_Pytorch
+This repositroy fork by [lyuwenyu/RT-DETR](https://github.com/lyuwenyu/RT-DETR).
 
-- [x] Training
-- [x] Evaluation
-- [x] Export onnx
-- [x] Upload source code
-- [x] Upload weight convert from paddle, see [*links*](https://github.com/lyuwenyu/RT-DETR/issues/42)
-- [x] Align training details with the [*paddle version*](../rtdetr_paddle/)
-- [x] Tuning rtdetr based on [*pretrained weights*](https://github.com/lyuwenyu/RT-DETR/issues/42)
+It make for provides better pytorch code.
 
-</details>
-
+- easier to debug than the original pytorch code.
+- easier to read than the original pytorch code.
+- Don't use YML config files. You only need to look at the code.
 
 ## Model Zoo
 
