@@ -6,3 +6,5 @@ pycocotools
 PyYAML
 scipy
 numpy<2
+psutil
+tabulate
