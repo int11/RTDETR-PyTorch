@@ -21,17 +21,12 @@ from torchvision import datapoints
 
 from pycocotools import mask as coco_mask
 
-from src.core import register
 from pycocotools.coco import COCO
 
 __all__ = ['CocoDetection', 'CocoDetection_share_memory']
 
 
-@register
 class CocoDetection(torchvision.datasets.CocoDetection):
-    __inject__ = ['transforms']
-    __share__ = ['remap_mscoco_category']
-    
     def __init__(self, img_folder, ann_file, transforms, return_masks, remap_mscoco_category=False):
         super(CocoDetection, self).__init__(img_folder, ann_file)
         os.makedirs(self.root, exist_ok=True)

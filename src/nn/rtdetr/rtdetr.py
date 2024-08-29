@@ -6,12 +6,9 @@ import torch.nn.functional as F
 
 import numpy as np 
 from src.nn.backbone.presnet import PResNet
-from src.core import register
 
-@register
+
 class RTDETR(nn.Module):
-    __inject__ = ['backbone', 'encoder', 'decoder', ]
-
     def __init__(self, backbone: nn.Module, encoder, decoder, multi_scale=None):
         super().__init__()
         self.backbone = backbone

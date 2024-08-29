@@ -54,9 +54,6 @@ def fit(model,
     
     #dist wrap modeln loader must do after model.to(device)
     if dist.is_dist_available_and_initialized():
-        # model = dist.warp_model(model, find_unused_parameters=True, sync_bn=True)
-        # ema_model = dist.warp_model(ema_model, find_unused_parameters=True, sync_bn=True) if use_ema == True else None
-        # criterion = dist.warp_model(criterion, find_unused_parameters=True, sync_bn=True)
         train_dataloader = dist.warp_loader(train_dataloader)
         val_dataloader = dist.warp_loader(val_dataloader)
         model = dist.warp_model(model, find_unused_parameters=False, sync_bn=True)
@@ -102,15 +99,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
+        #amp
         with torch.autocast(device_type=device.type, cache_enabled=True):
             outputs = model(samples, targets)
-        
-
         with torch.autocast(device_type=device.type, enabled=False):
             loss_dict = criterion(outputs, targets)
-
         loss = sum(loss_dict.values())
-
 
         if scaler is not None:
             scaler.scale(loss).backward()

@@ -8,8 +8,6 @@ import torch.nn.functional as F
 
 from .utils import get_activation
 
-from src.core import register
-
 
 __all__ = ['HybridEncoder']
 
@@ -179,7 +177,6 @@ class TransformerEncoder(nn.Module):
         return output
 
 
-@register
 class HybridEncoder(nn.Module):
     def __init__(self,
                  in_channels=[512, 1024, 2048],

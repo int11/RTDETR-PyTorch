@@ -2,10 +2,7 @@
 import torchvision
 from typing import Optional, Callable
 
-from src.core import register
 
-
-@register
 class CIFAR10(torchvision.datasets.CIFAR10):
     __inject__ = ['transform', 'target_transform']
     

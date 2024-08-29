@@ -15,11 +15,8 @@ import torchvision
 from .box_ops import box_cxcywh_to_xyxy, box_iou, generalized_box_iou
 
 from src.misc.dist import get_world_size, is_dist_available_and_initialized
-from src.core import register
 
 
-
-@register
 class SetCriterion(nn.Module):
     """ This class computes the loss for DETR.
     The process happens in two steps:

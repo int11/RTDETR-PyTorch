@@ -8,8 +8,6 @@ from collections import OrderedDict
 
 from .common import get_activation, ConvNormLayer, FrozenBatchNorm2d
 
-from src.core import register
-
 
 __all__ = ['PResNet']
 
@@ -138,7 +136,6 @@ class Blocks(nn.Module):
         return out
 
 
-@register
 class PResNet(nn.Module):
     def __init__(
         self, 

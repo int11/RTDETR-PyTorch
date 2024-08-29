@@ -1,21 +1,14 @@
 import torch 
 import torch.utils.data as data
 
-from src.core import register
-
 
 __all__ = ['DataLoader']
 
-
-@register
 class DataLoader(data.DataLoader):
     def __init__(self, *args, **kwargs):
         self.shuffle = kwargs.get('shuffle', False)
         kwargs['shuffle'] = self.shuffle
         super(DataLoader, self).__init__(*args, **kwargs)
-        
-
-    __inject__ = ['dataset', 'collate_fn']
 
     def __repr__(self) -> str:
         format_string = self.__class__.__name__ + "("
@@ -26,8 +19,6 @@ class DataLoader(data.DataLoader):
         return format_string
 
 
-
-@register
 def default_collate_fn(items):
     '''default collate_fn
     '''    

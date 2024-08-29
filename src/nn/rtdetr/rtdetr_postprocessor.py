@@ -7,16 +7,11 @@ import torch.nn.functional as F
 
 import torchvision
 
-from src.core import register
-
 
 __all__ = ['RTDETRPostProcessor']
 
 
-@register
-class RTDETRPostProcessor(nn.Module):
-    __share__ = ['num_classes', 'use_focal_loss', 'num_top_queries', 'remap_mscoco_category']
-    
+class RTDETRPostProcessor(nn.Module):    
     def __init__(self, num_classes=80, use_focal_loss=True, num_top_queries=300, remap_mscoco_category=False) -> None:
         super().__init__()
         self.use_focal_loss = use_focal_loss

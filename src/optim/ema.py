@@ -13,7 +13,6 @@ from copy import deepcopy
 
 
 
-from src.core import register
 import src.misc.dist as dist 
 
 
@@ -21,7 +20,6 @@ __all__ = ['ModelEMA']
 
 
 
-@register
 class ModelEMA(object):
     """ Model Exponential Moving Average from https://github.com/rwightman/pytorch-image-models
     Keep a moving average of everything in the model state_dict (parameters and buffers).
@@ -92,8 +90,6 @@ class ModelEMA(object):
 
     def extra_repr(self) -> str:
         return f'decay={self.decay}, warmups={self.warmups}'
-
-
 
 
 class ExponentialMovingAverage(torch.optim.swa_utils.AveragedModel):

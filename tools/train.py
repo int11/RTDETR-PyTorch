@@ -4,6 +4,7 @@ from src.data.coco.coco_dataset import CocoDetection
 from src.misc import dist
 import argparse
 
+
 def main():
     args = parser.parse_args()
 
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weight_path', '-w', type=str, default=None)
 
-    parser.add_argument('--save_dir', '-save', type=str)
+    parser.add_argument('--save_dir', '-s', type=str, default='output/rtdetr_r18vd_6x_coco')
 
     parser.add_argument('--batch_size', type=int, default=4,
                         help='mini-batch size (default: 32), this is the total '
@@ -53,6 +54,6 @@ if __name__ == '__main__':
     parser.add_argument('--ema', action='store_true', default=True,
                         help='Exponential Moving Average')
     
-    parser.add_argument('--epoch', type=int, default=73)
+    parser.add_argument('--epoch', type=int, default=100)
 
     main()

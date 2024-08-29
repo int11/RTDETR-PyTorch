@@ -6,6 +6,7 @@ reference
 by lyuwenyu
 """
 
+import time 
 import os
 import random
 import numpy as np 
@@ -65,7 +66,6 @@ def setup_print(is_main):
     __builtin__.print = print
 
 
-# fixed, need to commit main
 def is_dist_available_and_initialized():
     return tdist.is_available() and tdist.is_initialized()
 
@@ -118,7 +118,6 @@ def warp_loader(loader):
     return loader
 
 
-
 def is_parallel(model) -> bool:
     # Returns True if model is of type DP or DDP
     return type(model) in (torch.nn.parallel.DataParallel, torch.nn.parallel.DistributedDataParallel)
@@ -156,7 +155,6 @@ def reduce_dict(data, avg=True):
     return _data
 
 
-
 def all_gather(data):
     """
     Run all_gather on arbitrary picklable data (not necessarily tensors)
@@ -173,7 +171,6 @@ def all_gather(data):
     return data_list
 
     
-import time 
 def sync_time():
     '''sync_time
     '''
@@ -181,7 +178,6 @@ def sync_time():
         torch.cuda.synchronize()
 
     return time.time()
-
 
 
 def set_seed(seed):

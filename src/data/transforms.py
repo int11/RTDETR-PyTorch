@@ -12,51 +12,13 @@ from torchvision import datapoints
 import torchvision.transforms.v2 as T
 import torchvision.transforms.v2.functional as F
 
+
 from PIL import Image 
 from typing import Any, Dict, List, Optional
 
-from src.core import register, GLOBAL_CONFIG
+from torchvision.transforms.v2 import Compose, RandomPhotometricDistort, RandomZoomOut, RandomHorizontalFlip, Resize, ToImageTensor, ConvertDtype, SanitizeBoundingBox, RandomCrop, Normalize
 
 
-__all__ = ['Compose', ]
-
-
-RandomPhotometricDistort = register(T.RandomPhotometricDistort)
-RandomZoomOut = register(T.RandomZoomOut)
-# RandomIoUCrop = register(T.RandomIoUCrop)
-RandomHorizontalFlip = register(T.RandomHorizontalFlip)
-Resize = register(T.Resize)
-ToImageTensor = register(T.ToImageTensor)
-ConvertDtype = register(T.ConvertDtype)
-SanitizeBoundingBox = register(T.SanitizeBoundingBox)
-RandomCrop = register(T.RandomCrop)
-Normalize = register(T.Normalize)
-
-
-
-@register
-class Compose(T.Compose):
-    def __init__(self, ops) -> None:
-        transforms = []
-        if ops is not None:
-            for op in ops:
-                if isinstance(op, dict):
-                    name = op.pop('type')
-                    transfom = getattr(GLOBAL_CONFIG[name]['_pymodule'], name)(**op)
-                    transforms.append(transfom)
-                    # op['type'] = name
-                elif isinstance(op, nn.Module):
-                    transforms.append(op)
-
-                else:
-                    raise ValueError('')
-        else:
-            transforms =[EmptyTransform(), ]
- 
-        super().__init__(transforms=transforms)
-
-
-@register
 class EmptyTransform(T.Transform):
     def __init__(self, ) -> None:
         super().__init__()
@@ -66,7 +28,6 @@ class EmptyTransform(T.Transform):
         return inputs
 
 
-@register
 class PadToSize(T.Pad):
     _transformed_types = (
         Image.Image,
@@ -100,7 +61,6 @@ class PadToSize(T.Pad):
         return outputs
 
 
-@register
 class RandomIoUCrop(T.RandomIoUCrop):
     def __init__(self, min_scale: float = 0.3, max_scale: float = 1, min_aspect_ratio: float = 0.5, max_aspect_ratio: float = 2, sampler_options: Optional[List[float]] = None, trials: int = 40, p: float = 1.0):
         super().__init__(min_scale, max_scale, min_aspect_ratio, max_aspect_ratio, sampler_options, trials)
@@ -113,7 +73,6 @@ class RandomIoUCrop(T.RandomIoUCrop):
         return super().forward(*inputs)
 
 
-@register
 class ConvertBox(T.Transform):
     _transformed_types = (
         datapoints.BoundingBox,
