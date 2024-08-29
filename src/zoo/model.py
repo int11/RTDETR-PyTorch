@@ -5,7 +5,7 @@ from src.nn.rtdetr.rtdetr_decoder import RTDETRTransformer
 from src.nn.backbone.presnet import PResNet
 
 
-def rtdetr_r50vd_backbone(
+def r50vd_backbone(
         depth=50, 
         variant='d', 
         freeze_at=0, 
@@ -24,7 +24,7 @@ def rtdetr_r50vd_backbone(
         pretrained=pretrained)
 
 
-def rtdetr_r50vd_encoder(
+def r50vd_encoder(
         in_channels=[512, 1024, 2048],
         feat_strides=[8, 16, 32],
         hidden_dim=256,
@@ -57,7 +57,7 @@ def rtdetr_r50vd_encoder(
         eval_spatial_size=eval_spatial_size)
 
 
-def rtdetr_r50vd_decoder(
+def r50vd_decoder(
         feat_channels=[256, 256, 256],
         feat_strides=[8, 16, 32],
         hidden_dim=256,
@@ -80,10 +80,10 @@ def rtdetr_r50vd_decoder(
         eval_spatial_size=eval_spatial_size)
 
 
-def rtdetr_r50vd():
-    backbone = rtdetr_r50vd_backbone()
-    encoder = rtdetr_r50vd_encoder()
-    decoder = rtdetr_r50vd_decoder()
+def r50vd():
+    backbone = r50vd_backbone()
+    encoder = r50vd_encoder()
+    decoder = r50vd_decoder()
 
     model = RTDETR(
         backbone=backbone,
@@ -95,10 +95,10 @@ def rtdetr_r50vd():
     return model
 
 
-def rtdetr_r18vd():
-    backbone = rtdetr_r50vd_backbone(depth=18, freeze_at=-1, freeze_norm=False)
-    encoder = rtdetr_r50vd_encoder(in_channels=[128, 256, 512], expansion=0.5)
-    decoder = rtdetr_r50vd_decoder(num_decoder_layers=3)
+def r18vd():
+    backbone = r50vd_backbone(depth=18, freeze_at=-1, freeze_norm=False)
+    encoder = r50vd_encoder(in_channels=[128, 256, 512], expansion=0.5)
+    decoder = r50vd_decoder(num_decoder_layers=3)
     
     model = RTDETR(
         backbone=backbone,
@@ -110,10 +110,10 @@ def rtdetr_r18vd():
     return model
 
 
-def rtdetr_r34vd():
-    backbone = rtdetr_r50vd_backbone(depth=34, freeze_at=-1, freeze_norm=False)
-    encoder = rtdetr_r50vd_encoder(in_channels=[128, 256, 512], expansion=0.5)
-    decoder = rtdetr_r50vd_decoder(num_decoder_layers=4)
+def r34vd():
+    backbone = r50vd_backbone(depth=34, freeze_at=-1, freeze_norm=False)
+    encoder = r50vd_encoder(in_channels=[128, 256, 512], expansion=0.5)
+    decoder = r50vd_decoder(num_decoder_layers=4)
 
     model = RTDETR(
         backbone=backbone,
@@ -125,10 +125,10 @@ def rtdetr_r34vd():
     return model
 
 
-def rtdetr_r50vd_m():
-    backbone = rtdetr_r50vd_backbone()
-    encoder = rtdetr_r50vd_encoder(expansion=0.5)
-    decoder = rtdetr_r50vd_decoder(eval_idx=2)
+def r50vd_m():
+    backbone = r50vd_backbone()
+    encoder = r50vd_encoder(expansion=0.5)
+    decoder = r50vd_decoder(eval_idx=2)
 
     model = RTDETR(
         backbone=backbone,
@@ -140,10 +140,10 @@ def rtdetr_r50vd_m():
     return model
 
 
-def rtdetr_r101vd():
-    backbone = rtdetr_r50vd_backbone(depth=101)
-    encoder = rtdetr_r50vd_encoder(hidden_dim=384, dim_feedforward=2048)
-    decoder = rtdetr_r50vd_decoder(feat_channels=[384, 384, 384])
+def r101vd():
+    backbone = r50vd_backbone(depth=101)
+    encoder = r50vd_encoder(hidden_dim=384, dim_feedforward=2048)
+    decoder = r50vd_decoder(feat_channels=[384, 384, 384])
 
     model = RTDETR(
         backbone=backbone,

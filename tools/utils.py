@@ -48,7 +48,6 @@ def fit(model,
         last_epoch = load_tuning_state(weight_path, model, ema_model)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     model.to(device)
     ema_model.to(device) if use_ema == True else None
     criterion.to(device)  
@@ -64,7 +63,6 @@ def fit(model,
 
     
     print("Start training")
-
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
@@ -104,14 +102,17 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        if scaler is not None:
-            with torch.autocast(device_type=device.type, cache_enabled=True):
-                outputs = model(samples, targets)
-            
-            with torch.autocast(device_type=device.type, enabled=False):
-                loss_dict = criterion(outputs, targets)
+        with torch.autocast(device_type=device.type, cache_enabled=True):
+            outputs = model(samples, targets)
+        
 
-            loss = sum(loss_dict.values())
+        with torch.autocast(device_type=device.type, enabled=False):
+            loss_dict = criterion(outputs, targets)
+
+        loss = sum(loss_dict.values())
+
+
+        if scaler is not None:
             scaler.scale(loss).backward()
 
             if max_norm > 0:
@@ -121,12 +122,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
-
         else:
-            outputs = model(samples, targets)
-            loss_dict = criterion(outputs, targets)
-            
-            loss = sum(loss_dict.values())
             optimizer.zero_grad()
             loss.backward()
             

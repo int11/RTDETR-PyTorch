@@ -12,7 +12,6 @@ from typing import Dict
 
 import torch
 import torch.distributed as tdist
-from rtest.utils import *
 from .dist import is_dist_available_and_initialized, get_world_size
 
 
