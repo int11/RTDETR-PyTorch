@@ -6,14 +6,11 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 import argparse
-import numpy as np 
-
-from src.core import YAMLConfig
 
 import torch
 import torch.nn as nn 
 
-
+#TODO refactor code
 def main(args, ):
     """main
     """

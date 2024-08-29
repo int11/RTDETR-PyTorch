@@ -2,6 +2,7 @@ from src import zoo
 from utils import fit, val
 from src.data.coco.coco_dataset import CocoDetection
 from src.misc import dist
+from src.data.dataloader import DataLoader
 import argparse
 
 
@@ -14,13 +15,14 @@ def main():
     optimizer = zoo.optimizer.rtdetr_r18vd_optimizer(model)
 
     #TODO There is a slow on a dataset that is not a CocoDetection class, need to fix this
-    val_dataset = zoo.rtdetr_val_dataset(dataset_class=CocoDetection)
-    val_dataloader = zoo.rtdetr_val_dataloader(dataset=val_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
+    val_dataset = zoo.coco_val_dataset(dataset_class=CocoDetection)
+    val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False, drop_last=False)
 
     if args.test_only:
         val(model, args.weight_path, val_dataloader=val_dataloader)
     else:
-        train_dataloader = zoo.rtdetr_train_dataloader(batch_size=args.batch_size, num_workers=args.num_workers)
+        train_dataset = zoo.coco_train_dataset()
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
         fit(
             model=model, 
             weight_path=args.weight_path,

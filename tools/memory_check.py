@@ -82,11 +82,13 @@ def main(**kwargs):
     monitor = MemoryMonitor()
     monitor.pids = Manager().list(monitor.pids)
 
-    dataloader = rtdetr_train_dataloader(
-        dataset=rtdetr_train_dataset(**kwargs), 
+    dataset = coco_train_dataset(**kwargs)
+    dataloader = DataLoader(
+        dataset=dataset, 
         worker_init_fn=hook_pid,
         batch_size=32, 
-        num_workers=2)
+        num_workers=2,
+        shuffle=False)
 
     t = time.time()
 
@@ -110,7 +112,7 @@ def main2(**kwargs):
     start_method = 'fork'
     mp.set_start_method(start_method)
     monitor = MemoryMonitor()
-    ds = rtdetr_train_dataset(**kwargs)
+    ds = coco_train_dataset(**kwargs)
     print(monitor.table())
     if start_method == "forkserver":
         # Reduce 150M-per-process USS due to "import torch".

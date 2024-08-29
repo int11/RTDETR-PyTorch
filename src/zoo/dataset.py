@@ -4,7 +4,7 @@ from src.data.dataloader import DataLoader, default_collate_fn
 from src.data import transforms as T
 
 
-def rtdetr_train_dataset(
+def coco_train_dataset(
         img_folder="./dataset/coco/train2017/",
         ann_file="./dataset/coco/annotations/instances_train2017.json",
         range_num=None,
@@ -36,29 +36,7 @@ def rtdetr_train_dataset(
     return train_dataset
 
 
-def rtdetr_train_dataloader( 
-        dataset=None,
-        batch_size=4,
-        shuffle=True, 
-        num_workers=4,
-        collate_fn=default_collate_fn, 
-        drop_last=True,
-        **kwargs):
-    
-    if dataset == None:
-        dataset = rtdetr_train_dataset()
-
-    return DataLoader(
-        dataset, 
-        batch_size=batch_size, 
-        shuffle=shuffle, 
-        num_workers=num_workers, 
-        collate_fn=collate_fn, 
-        drop_last=drop_last, 
-        **kwargs)
-
-
-def rtdetr_val_dataset(
+def coco_val_dataset(
         img_folder="./dataset/coco/val2017/",
         ann_file="./dataset/coco/annotations/instances_val2017.json",
         range_num=None,
@@ -79,25 +57,3 @@ def rtdetr_val_dataset(
         val_dataset = torch.utils.data.Subset(val_dataset, range(range_num))
 
     return val_dataset
-        
-
-def rtdetr_val_dataloader(
-        dataset=None,
-        batch_size=4,
-        shuffle=False,
-        num_workers=4,
-        collate_fn=default_collate_fn,
-        drop_last=False,
-        **kwargs):
-    
-    if dataset == None:
-        dataset = rtdetr_val_dataset()
-
-    return DataLoader(
-        dataset, 
-        batch_size=batch_size, 
-        shuffle=shuffle, 
-        num_workers=num_workers, 
-        collate_fn=collate_fn, 
-        drop_last=drop_last, 
-        **kwargs)

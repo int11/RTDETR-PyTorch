@@ -1,14 +1,29 @@
 import torch 
 import torch.utils.data as data
-
+from src.data.dataloader import default_collate_fn
 
 __all__ = ['DataLoader']
 
 class DataLoader(data.DataLoader):
-    def __init__(self, *args, **kwargs):
-        self.shuffle = kwargs.get('shuffle', False)
-        kwargs['shuffle'] = self.shuffle
-        super(DataLoader, self).__init__(*args, **kwargs)
+    def __init__(
+            self, 
+            dataset,
+            batch_size,
+            shuffle=True, 
+            num_workers=0,
+            collate_fn=default_collate_fn, 
+            drop_last=True, 
+            **kwargs):
+        
+        self.shuffle = shuffle
+        super(DataLoader, self).__init__(
+            dataset=dataset, 
+            batch_size=batch_size, 
+            shuffle=shuffle, 
+            num_workers=num_workers, 
+            collate_fn=collate_fn, 
+            drop_last=drop_last, 
+            **kwargs)
 
     def __repr__(self) -> str:
         format_string = self.__class__.__name__ + "("
