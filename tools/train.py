@@ -12,7 +12,7 @@ def main():
     dist.init_distributed()
     
     model = zoo.model.r18vd()
-    optimizer = zoo.optimizer.rtdetr_r18vd_optimizer(model)
+    optimizer = zoo.optimizer.r18vd(model)
 
     #TODO There is a slow on a dataset that is not a CocoDetection class, need to fix this
     val_dataset = zoo.coco_val_dataset(dataset_class=CocoDetection)
