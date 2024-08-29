@@ -34,9 +34,9 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weight_path', '-w', type=str, default="output/rtdetr_r18vd_6x_coco/86.pth")
+    parser.add_argument('--weight_path', '-w', type=str, default=None)
 
-    parser.add_argument('--save_dir', '-save', type=str, default="output/rtdetr_r18vd_6x_coco")
+    parser.add_argument('--save_dir', '-save', type=str)
 
     parser.add_argument('--batch_size', type=int, default=4,
                         help='mini-batch size (default: 32), this is the total '
