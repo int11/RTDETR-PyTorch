@@ -6,6 +6,8 @@ It make for provides better pytorch code.
 - easier to debug than the original pytorch code.
 - easier to read than the original pytorch code.
 - Don't use YML config files. You only need to look at the code.
+- Check out the model class zoo. [src/zoo/model.py](https://github.com/int11/RT_DETR_Pytorch/blob/main/src/zoo/model.py), [src/zoo/optimizer.py](https://github.com/int11/RT_DETR_Pytorch/blob/main/src/zoo/optimizer.py)
+- Check out the training example [tools/train.py](https://github.com/int11/RT_DETR_Pytorch/blob/main/tools/train.py)
 
 ## Model Zoo
 
