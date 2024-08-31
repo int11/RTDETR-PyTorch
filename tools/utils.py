@@ -139,8 +139,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 def val(model, weight_path, criterion=None, val_dataloader=None):
     if criterion == None:
         criterion = rtdetr_criterion()
-    if val_dataloader == None:
-        val_dataloader = rtdetr_val_dataloader()
 
     model.eval()
     criterion.eval()
