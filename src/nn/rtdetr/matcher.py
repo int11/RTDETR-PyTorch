@@ -22,8 +22,6 @@ class HungarianMatcher(nn.Module):
     while the others are un-matched (and thus treated as non-objects).
     """
 
-    __share__ = ['use_focal_loss', ]
-
     def __init__(self, weight_dict, use_focal_loss=False, alpha=0.25, gamma=2.0):
         """Creates the matcher
 

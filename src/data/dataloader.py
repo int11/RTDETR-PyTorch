@@ -1,8 +1,15 @@
 import torch 
 import torch.utils.data as data
-from src.data.dataloader import default_collate_fn
+
 
 __all__ = ['DataLoader']
+
+
+def default_collate_fn(items):
+    '''default collate_fn
+    '''    
+    return torch.cat([x[0][None] for x in items], dim=0), [x[1] for x in items]
+
 
 class DataLoader(data.DataLoader):
     def __init__(
@@ -32,9 +39,3 @@ class DataLoader(data.DataLoader):
             format_string += "    {0}: {1}".format(n, getattr(self, n))
         format_string += "\n)"
         return format_string
-
-
-def default_collate_fn(items):
-    '''default collate_fn
-    '''    
-    return torch.cat([x[0][None] for x in items], dim=0), [x[1] for x in items]

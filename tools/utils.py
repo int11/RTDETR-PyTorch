@@ -10,7 +10,7 @@ from torch.cuda.amp import GradScaler
 import torch.optim.lr_scheduler as lr_schedulers
 import torch.amp 
 
-from src.zoo import rtdetr_train_dataloader, rtdetr_val_dataloader, rtdetr_criterion
+from src.zoo import rtdetr_criterion
 from src.data.coco.coco_eval import CocoEvaluator
 from src.data.coco.coco_utils import get_coco_api_from_dataset
 from src.misc import MetricLogger, SmoothedValue, reduce_dict
@@ -24,20 +24,15 @@ def fit(model,
         weight_path, 
         optimizer, 
         save_dir,
+        train_dataloader, 
+        val_dataloader,
         criterion=None,
-        train_dataloader=None, 
-        val_dataloader=None,
         epoch=73,
         use_amp=True,
         use_ema=True):
 
     if criterion == None:
         criterion = rtdetr_criterion()
-    if train_dataloader == None:
-        train_dataloader = rtdetr_train_dataloader()
-    if val_dataloader == None:
-        val_dataloader = rtdetr_val_dataloader()
-
 
     scaler = GradScaler() if use_amp == True else None
     ema_model = ModelEMA(model, decay=0.9999, warmups=2000) if use_ema == True else None

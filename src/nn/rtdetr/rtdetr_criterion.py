@@ -23,8 +23,6 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    __share__ = ['num_classes', ]
-    __inject__ = ['matcher', ]
 
     def __init__(self, matcher, weight_dict, losses, alpha=0.2, gamma=2.0, eos_coef=1e-4, num_classes=80):
         """ Create the criterion.
@@ -310,9 +308,6 @@ class SetCriterion(nn.Module):
                     torch.zeros(0, dtype=torch.int64,  device=device)))
         
         return dn_match_indices
-
-
-
 
 
 @torch.no_grad()
