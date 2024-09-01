@@ -86,13 +86,14 @@ def train_one_epoch(model: torch.nn.Module,
                     optimizer: torch.optim.Optimizer,
                     device: torch.device, 
                     epoch: int, 
-                    max_norm: float = 0, 
+                    print_freq: int,
+                    max_norm: float = 0,
                     ema=None, 
                     scaler=None):
     model.train()
     criterion.train()
 
-    metric_logger = MetricLogger(data_loader, header=f'Epoch: [{epoch}]')
+    metric_logger = MetricLogger(data_loader, header=f'Epoch: [{epoch}]', print_freq=print_freq)
     metric_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
 
     for samples, targets in metric_logger.log_every():
@@ -145,16 +146,9 @@ def train_one_epoch(model: torch.nn.Module,
 
 #TODO This function too complex and slow because it from original repository, need to refactor
 @torch.no_grad()
-def val(model, weight_path, criterion=None, val_dataloader=None, use_amp=True, use_ema=True):
+def val(model, weight_path, val_dataloader, criterion=None, use_amp=True, use_ema=True):
     if criterion == None:
         criterion = rtdetr_criterion()
-
-    base_ds = get_coco_api_from_dataset(val_dataloader.dataset)
-    postprocessor = RTDETRPostProcessor(num_top_queries=300, remap_mscoco_category=val_dataloader.dataset.remap_mscoco_category)
-    iou_types = postprocessor.iou_types
-    coco_evaluator = CocoEvaluator(base_ds, iou_types)
-    metric_logger = MetricLogger(val_dataloader, header='Test:',)
-    panoptic_evaluator = None
 
     if weight_path != None:
         state = torch.hub.load_state_dict_from_url(weight_path, map_location='cpu') if 'http' in weight_path else torch.load(weight_path, map_location='cpu')
@@ -170,9 +164,16 @@ def val(model, weight_path, criterion=None, val_dataloader=None, use_amp=True, u
     if dist.is_dist_available_and_initialized():
         val_dataloader = dist.warp_loader(val_dataloader)
         model = dist.warp_model(model, find_unused_parameters=False, sync_bn=True)
-
+    
     model.eval()
     criterion.eval()
+
+    base_ds = get_coco_api_from_dataset(val_dataloader.dataset)
+    postprocessor = RTDETRPostProcessor(num_top_queries=300, remap_mscoco_category=val_dataloader.dataset.remap_mscoco_category)
+    iou_types = postprocessor.iou_types
+    coco_evaluator = CocoEvaluator(base_ds, iou_types)
+    metric_logger = MetricLogger(val_dataloader, header='Test:',)
+    panoptic_evaluator = None
 
     for samples, targets in metric_logger.log_every():
         samples = samples.to(device)

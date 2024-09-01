@@ -24,7 +24,7 @@ def main():
         dataset_class=CocoDetection)
     val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False, drop_last=False)
 
-    if args.test_only:
+    if args.val:
         val(model=model, 
             weight_path=args.weight_path, 
             val_dataloader=val_dataloader,
