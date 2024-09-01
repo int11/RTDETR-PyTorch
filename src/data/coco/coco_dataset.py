@@ -43,14 +43,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         img_info = self.coco.loadImgs(image_id)[0]
         img_full_path = os.path.join(self.root, img_info["file_name"])
 
-        # if the image not exists, download and save it
-        if os.path.exists(img_full_path):
-            img = Image.open(img_full_path).convert("RGB")
-        else:
-            response = requests.get(img_info['coco_url'])
-            img = Image.open(BytesIO(response.content)).convert("RGB")
-            img.save(img_full_path)
-        
+        img = Image.open(img_full_path).convert("RGB")
 
         target = self._load_target(image_id)
         target = {'image_id': image_id, 'annotations': target}
@@ -108,13 +101,7 @@ class CocoDetection_share_memory(torchvision.datasets.VisionDataset):
         file_name = img_info["file_name"]
         img_full_path = os.path.join(self.root, file_name)
 
-        if os.path.exists(img_full_path):
-            img = Image.open(img_full_path).convert("RGB")
-        else:
-            response = requests.get(img_info['coco_url'])
-            img = Image.open(BytesIO(response.content)).convert("RGB")
-            img.save(img_full_path)
-        return img
+        return Image.open(img_full_path).convert("RGB")
 
     def _load_target(self, idx: int):
         return  self.anns[idx]

@@ -1,6 +1,5 @@
 import torch
-from src.data.coco.coco_dataset import CocoDetection, CocoDetection_share_memory
-from src.data.dataloader import DataLoader, default_collate_fn
+from src.data.coco.coco_dataset import CocoDetection_share_memory
 from src.data import transforms as T
 
 

@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 import time
@@ -70,6 +71,7 @@ def fit(model,
 
         dist.save_on_master(state_dict(epoch, model, ema_model), os.path.join(save_dir, f'{epoch}.pth'))
 
+        # The val function during training is always use_ema=False flag to skip the logic of fetching ema files
         module = ema_model.module if use_ema == True else model
         test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
 
@@ -78,14 +80,17 @@ def fit(model,
     print('Training time {}'.format(total_time_str))
 
 
-def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
-                    data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, max_norm: float = 0, **kwargs):
+def train_one_epoch(model: torch.nn.Module, 
+                    criterion: torch.nn.Module,
+                    data_loader: Iterable, 
+                    optimizer: torch.optim.Optimizer,
+                    device: torch.device, 
+                    epoch: int, 
+                    max_norm: float = 0, 
+                    ema=None, 
+                    scaler=None):
     model.train()
     criterion.train()
-    
-    ema = kwargs.get('ema', None)
-    scaler = kwargs.get('scaler', None)
 
     metric_logger = MetricLogger(data_loader, header=f'Epoch: [{epoch}]')
     metric_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
@@ -95,13 +100,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         #amp
-        with torch.autocast(device_type=device.type, cache_enabled=True):
-            outputs = model(samples, targets)
-        with torch.autocast(device_type=device.type, enabled=False):
+        if scaler != None:
+            with torch.autocast(device_type=device.type, cache_enabled=True, enabled=device.type == 'cuda'):
+                outputs = model(samples, targets)
             loss_dict = criterion(outputs, targets)
-        loss = sum(loss_dict.values())
 
-        if scaler is not None:
+            loss = sum(loss_dict.values())
             scaler.scale(loss).backward()
 
             if max_norm > 0:
@@ -112,6 +116,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             scaler.update()
             optimizer.zero_grad()
         else:
+            outputs = model(samples, targets)
+            loss_dict = criterion(outputs, targets)
+
+            loss = sum(loss_dict.values())
             optimizer.zero_grad()
             loss.backward()
             
@@ -135,23 +143,22 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             sys.exit(1)
 
 
+#TODO This function too complex and slow because it from original repository, need to refactor
 @torch.no_grad()
-def val(model, weight_path, criterion=None, val_dataloader=None):
+def val(model, weight_path, criterion=None, val_dataloader=None, use_amp=True, use_ema=True):
     if criterion == None:
         criterion = rtdetr_criterion()
-
-    model.eval()
-    criterion.eval()
 
     base_ds = get_coco_api_from_dataset(val_dataloader.dataset)
     postprocessor = RTDETRPostProcessor(num_top_queries=300, remap_mscoco_category=val_dataloader.dataset.remap_mscoco_category)
     iou_types = postprocessor.iou_types
     coco_evaluator = CocoEvaluator(base_ds, iou_types)
-
+    metric_logger = MetricLogger(val_dataloader, header='Test:',)
+    panoptic_evaluator = None
 
     if weight_path != None:
         state = torch.hub.load_state_dict_from_url(weight_path, map_location='cpu') if 'http' in weight_path else torch.load(weight_path, map_location='cpu')
-        if 'ema' in state:
+        if use_ema == True:
             model.load_state_dict(state['ema']['module'], strict=False)
         else:
             model.load_state_dict(state['model'], strict=False)
@@ -160,15 +167,19 @@ def val(model, weight_path, criterion=None, val_dataloader=None):
     model.to(device)
     criterion.to(device)
 
-    metric_logger = MetricLogger(val_dataloader, header='Test:',)
+    if dist.is_dist_available_and_initialized():
+        val_dataloader = dist.warp_loader(val_dataloader)
+        model = dist.warp_model(model, find_unused_parameters=False, sync_bn=True)
 
-    panoptic_evaluator = None
+    model.eval()
+    criterion.eval()
 
     for samples, targets in metric_logger.log_every():
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        outputs = model(samples)
+        with torch.autocast(device_type=device.type, enabled=use_amp == True and device.type == 'cuda'):
+            outputs = model(samples)
 
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)        
         results = postprocessor(outputs, orig_target_sizes)
@@ -198,3 +209,14 @@ def val(model, weight_path, criterion=None, val_dataloader=None):
             stats['coco_eval_masks'] = coco_evaluator.coco_eval['segm'].stats.tolist()
             
     return stats, coco_evaluator
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')

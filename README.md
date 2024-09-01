@@ -43,14 +43,16 @@ pip install -r requirements.txt
 <details>
 <summary>Data</summary>
 
-- Download and extract COCO 2017 train and val images.
+- Download and extract COCO 2017 train and val images. https://cocodataset.org/#download
+- The directory must contain train2017, val2017, and annotation folders.
+- When training, enter the dataset path through the --dataset_dir flag (default: dataset/coco)"
 ```
-path/to/coco/
+path/to/
   annotations/  # annotation json files
   train2017/    # train images
   val2017/      # val images
 ```
-- Modify config [`img_folder`, `ann_file`](configs/dataset/coco_detection.yml)
+
 </details>
 
 
@@ -59,35 +61,69 @@ path/to/coco/
 <summary>Training & Evaluation</summary>
 
 - Training on a Single GPU:
-
 ```shell
 # training on single-gpu
 export CUDA_VISIBLE_DEVICES=0
-python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml
-```
+python tools/train.py --dataset_dir path/to/dataset
 
-- Training on Multiple GPUs:
-
-```shell
 # train on multi-gpu
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-torchrun --nproc_per_node=4 tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml
+torchrun --nproc_per_node=4 tools/train.py 
+
+# Load the weight file to continue train
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+torchrun --nproc_per_node=4 tools/train.py -w path/to/weight_file.pth
 ```
 
 - Evaluation on Multiple GPUs:
-
 ```shell
 # val on multi-gpu
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-torchrun --nproc_per_node=4 tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r path/to/checkpoint --test-only
+torchrun --nproc_per_node=4 tools/train.py -w path/to/weight_file.pth --val true
 ```
 
+- Flag list
+```shell
+'--weight_path', '-w', type=str, default=None, 
+help='path to the weight file (default: None)'
+
+'--save_dir', '-s', type=str, default='output/rtdetr_r18vd_6x_coco',
+help='path to the weight save directory (default: output/rtdetr_r18vd_6x_coco)'
+
+'--dataset_dir', type=str, default='dataset/coco',
+help='path to the dataset directory (default: dataset/coco). This is the directory that must contains the train2017, val2017, annotations folder'
+
+'--batch_size', type=int, default=4,
+help='mini-batch size (default: 4), this is the total batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel'
+
+'--num_workers', type=int, default=0,
+help='number of data loading workers (default: 0)'
+
+'--test-only', type=str2bool, default=False,
+help='if True, only evaluate the model (default: False)'
+
+'--amp', type=str2bool, default=True,
+help='When GPU is available, use Automatic Mixed Precision (default: True)'
+
+'--ema', type=str2bool, default=True,
+help='Use Exponential Moving Average (default: True)'
+
+'--epoch', type=int, default=100,
+help='When test-only is False, this is the number of epochs to train (default: 100)'
+
+'--model_type', type=str, default='r18vd',
+choices=['r18vd', 'r34vd', 'r50vd', 'r50vd_m', 'r101vd'],
+help='choose the model type (default: r18vd)'
+```
 </details>
 
 
 
 <details>
 <summary>Export</summary>
+
+- This part remains the same as the source code of the forked repository.
+- need to check code and refactor. Anyone please contribute to the code.
 
 ```shell
 python tools/export_onnx.py -c configs/rtdetr/rtdetr_r18vd_6x_coco.yml -r path/to/checkpoint --check
@@ -100,7 +136,5 @@ python tools/export_onnx.py -c configs/rtdetr/rtdetr_r18vd_6x_coco.yml -r path/t
 <details open>
 <summary>Train custom data</summary>
 
-1. set `remap_mscoco_category: False`. This variable only works for ms-coco dataset. If you want to use `remap_mscoco_category` logic on your dataset, please modify variable [`mscoco_category2name`](https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetr_pytorch/src/data/coco/coco_dataset.py#L154) based on your dataset.
-
-2. add `-t path/to/checkpoint` (optinal) to tuning rtdetr based on pretrained checkpoint. see [training script details](./tools/README.md).
+- The command line does not support it yet. Change the code and use it for now.
 </details>

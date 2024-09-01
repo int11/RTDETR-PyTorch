@@ -94,7 +94,7 @@ def save_on_master(obj, file_path):
 
 
 def warp_model(model, find_unused_parameters=False, sync_bn=False,):
-    if is_dist_available_and_initialized():
+    if is_parallel(model) == False:
         rank = get_rank()
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model) if sync_bn else model 
         model = DistributedDataParallel(model, device_ids=[rank], output_device=rank, find_unused_parameters=find_unused_parameters)
@@ -102,7 +102,7 @@ def warp_model(model, find_unused_parameters=False, sync_bn=False,):
 
 
 def warp_loader(loader):
-    if is_dist_available_and_initialized():
+    if is_parallel(loader) == False:
         device_count = torch.cuda.device_count()
         dataset = loader.dataset
         sampler = DistributedSampler(dataset, shuffle=loader.shuffle)
@@ -120,7 +120,7 @@ def warp_loader(loader):
 
 def is_parallel(model) -> bool:
     # Returns True if model is of type DP or DDP
-    return type(model) in (torch.nn.parallel.DataParallel, torch.nn.parallel.DistributedDataParallel)
+    return type(model) in (torch.nn.parallel.DataParallel, DistributedDataParallel, DistributedDataParallel)
 
 
 def de_parallel(model) -> nn.Module:
