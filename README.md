@@ -57,7 +57,7 @@ path/to/
 
 
 
-<details>
+<details open>
 <summary>Training & Evaluation</summary>
 
 - Training on a Single GPU:
