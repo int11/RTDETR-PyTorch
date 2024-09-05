@@ -29,8 +29,9 @@ Notes
 <!-- - `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$ and $tensorrt\\_fp16$ mode -->
 
 ## Quick start
+It is recommended that you work by changing the default value of the parser.add_argument function to your environment.
 
-<details>
+<details open>
 <summary>Install</summary>
 
 ```bash
@@ -40,14 +41,14 @@ pip install -r requirements.txt
 </details>
 
 
-<details>
+<details open>
 <summary>Data</summary>
 
 - Download and extract COCO 2017 train and val images. https://cocodataset.org/#download
 - The directory must contain train2017, val2017, and annotation folders.
 - When training, enter the dataset path through the --dataset_dir flag (default: dataset/coco)"
 ```
-path/to/
+path/to/dataset
   annotations/  # annotation json files
   train2017/    # train images
   val2017/      # val images
@@ -60,25 +61,25 @@ path/to/
 <details open>
 <summary>Training & Evaluation</summary>
 
-- Training on a Single GPU:
+- Training:
 ```shell
 # training on single-gpu
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0;
 python tools/train.py --dataset_dir path/to/dataset
 
 # train on multi-gpu
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1,2,3;
 torchrun --nproc_per_node=4 tools/train.py 
 
 # Load the weight file to continue train
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1,2,3;
 torchrun --nproc_per_node=4 tools/train.py -w path/to/weight_file.pth
 ```
 
 - Evaluation on Multiple GPUs:
 ```shell
 # val on multi-gpu
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1,2,3;
 torchrun --nproc_per_node=4 tools/train.py -w path/to/weight_file.pth --val true
 ```
 
@@ -119,15 +120,12 @@ help='choose the model type (default: r18vd)'
 
 
 
-<details>
+<details open>
 <summary>Export</summary>
 
 - This part remains the same as the source code of the forked repository.
 - need to check code and refactor. Anyone please contribute to the code.
 
-```shell
-python tools/export_onnx.py -c configs/rtdetr/rtdetr_r18vd_6x_coco.yml -r path/to/checkpoint --check
-```
 </details>
 
 
@@ -136,5 +134,6 @@ python tools/export_onnx.py -c configs/rtdetr/rtdetr_r18vd_6x_coco.yml -r path/t
 <details open>
 <summary>Train custom data</summary>
 
-- The command line does not support it yet. Change the code and use it for now.
+- Until now, there is no support from the command line. train by modifying the code yourself.
+
 </details>
