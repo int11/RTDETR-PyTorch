@@ -43,10 +43,8 @@ class ModelEMA(object):
         self.updates = 0  # number of EMA updates
         # self.filter_no_grad = filter_no_grad
         self.decay_fn = lambda x: decay * (1 - math.exp(-x / warmups))  # decay exponential ramp (to help early epochs)
-        
-        for p in self.module.parameters():
-            p.requires_grad_(False)
 
+    @torch.no_grad()
     def update(self, model: nn.Module):
         # Update EMA parameters
         with torch.no_grad():

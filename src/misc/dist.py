@@ -102,7 +102,7 @@ def warp_model(model, find_unused_parameters=False, sync_bn=False,):
 
 
 def warp_loader(loader):
-    if is_parallel(loader) == False:
+    if is_parallel(loader.sampler) == False:
         device_count = torch.cuda.device_count()
         dataset = loader.dataset
         sampler = DistributedSampler(dataset, shuffle=loader.shuffle)
@@ -113,14 +113,14 @@ def warp_loader(loader):
                             collate_fn=loader.collate_fn, 
                             pin_memory=loader.pin_memory,
                             num_workers=(loader.num_workers + device_count - 1) // device_count)
-        
-    
+
+
     return loader
 
 
 def is_parallel(model) -> bool:
     # Returns True if model is of type DP or DDP
-    return type(model) in (torch.nn.parallel.DataParallel, DistributedDataParallel, DistributedDataParallel)
+    return type(model) in (torch.nn.parallel.DataParallel, DistributedDataParallel, DistributedSampler)
 
 
 def de_parallel(model) -> nn.Module:
