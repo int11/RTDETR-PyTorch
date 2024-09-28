@@ -61,7 +61,10 @@ def fit(model,
 
     start_time = time.time()
     
+
     for epoch in range(last_epoch + 1, epoch):
+        sys.stdout = Tee(os.path.join(save_dir, f'{epoch}.txt'))
+
         if dist.is_dist_available_and_initialized():
             train_dataloader.sampler.set_epoch(epoch)
         
@@ -75,6 +78,8 @@ def fit(model,
         module = ema_model.module if use_ema == True else model
         test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
 
+        sys.stdout.close()
+        
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
@@ -221,3 +226,25 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+class Tee:
+    def __init__(self, path):
+        log_file = open(path, 'w')
+        self.file = log_file
+        self.stdout = sys.stdout
+
+    def write(self, obj):
+        self.file.write(obj)
+        self.file.flush()
+        self.stdout.write(obj)
+        self.stdout.flush()
+
+
+    def flush(self):
+        self.file.flush()
+        self.stdout.flush()
+
+    def close(self):
+        sys.stdout = sys.__stdout__  # Restore original stdout
+        self.file.close()
