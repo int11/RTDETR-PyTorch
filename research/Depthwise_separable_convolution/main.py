@@ -1,0 +1,1 @@
+#TODO Using Efficient Convolutional Layer, ex) Depthwise Separable Convolution or any other convolutional layer to replace the Conv2D layer in the model
