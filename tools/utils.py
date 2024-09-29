@@ -230,6 +230,7 @@ def str2bool(v):
 
 class Tee:
     def __init__(self, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         log_file = open(path, 'w')
         self.file = log_file
         self.stdout = sys.stdout

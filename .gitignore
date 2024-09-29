@@ -165,6 +165,7 @@ cython_debug/
 *.pth 
 *.pdparams
 *.onnx
+output/
 rtdetr_pytorch/output/*
 rtdetr_pytorch/dataset/*
 
