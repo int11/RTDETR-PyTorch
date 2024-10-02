@@ -165,9 +165,9 @@ cython_debug/
 *.pth 
 *.pdparams
 *.onnx
-output/
-rtdetr_pytorch/output/*
-rtdetr_pytorch/dataset/*
+output
+dataset
+
 
 # vscode
 .vscode/
