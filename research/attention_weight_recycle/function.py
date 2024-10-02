@@ -1,4 +1,3 @@
-from research.attention_weight_recycle import attention_weight_twice_matmul
 import math
 import torch
 import torch.nn.functional as F 
@@ -23,8 +22,12 @@ def attentionWeight_twice_matmul_type1(weight, feature, scale_factor):
     return result
 
 
-def attentionWeight_twice_matmul_type1_c(weight, feature, scale_factor):
-    return attention_weight_twice_matmul.attentionWeight_twice_matmul_type1(weight, feature, scale_factor)
+try:
+    from research.attention_weight_recycle import attention_weight_twice_matmul
+    def attentionWeight_twice_matmul_type1_c(weight, feature, scale_factor):
+        return attention_weight_twice_matmul.attentionWeight_twice_matmul_type1(weight, feature, scale_factor)
+except:
+    print("Please run the command: `python setup.py build_ext --inplace`")
 
 
 def attentionWeight_twice_matmul_type2(weight, feature, original_shape):
