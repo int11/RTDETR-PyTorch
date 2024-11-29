@@ -4,17 +4,30 @@ import torch.nn.functional as F
 from src.nn.rtdetr.hybrid_encoder import HybridEncoder, TransformerEncoderLayer
 import torch.nn as nn 
 
-def attentionWeight_twice_matmul_type1(weight, feature, scale_factor):
+
+def BCHW_to_BHWC(data):
+    N, HxW, C = data.shape
+    H = W = int(math.sqrt(HxW))
+    return data.permute(0, 2, 1).reshape(N, C, H, W).contiguous()
+
+
+def BHWC_to_BCHW(data):
+    N, C, H, W = data.shape
+    return data.permute(0, 2, 3, 1).reshape(N, H*W, C).contiguous()
+
+
+def attentionWeight_twice_matmul_type1(weight, feature):
     """
     Warning: Using too much cuda memory
     """
     N, Q, K = weight.shape
-    QH = QW = int(math.sqrt(Q))
-    KH = KW = int(math.sqrt(K))
+    N, C, FH, FW = feature.shape
+    H, W = int(math.sqrt(Q)), int(math.sqrt(K))
+    scale_H, scale_W = FH // H, FW // W
 
     # 4 dimension interpolate
-    attentionWeight_twice = weight.reshape(N, QH, 1, QW, 1, KH, 1, KW, 1).repeat(1, 1, scale_factor,1,scale_factor,1,scale_factor,1,scale_factor)
-    attentionWeight_twice = attentionWeight_twice.reshape(N, Q * scale_factor * scale_factor, K * scale_factor * scale_factor)
+    attentionWeight_twice = weight.reshape(N, H, 1, W, 1, H, 1, W, 1).repeat(1, 1, scale_H, 1, scale_W, 1, scale_H, 1, scale_W)
+    attentionWeight_twice = attentionWeight_twice.reshape(N, FH * FW, FH * FW)
 
     N, C, H, W = feature.shape
     result = torch.einsum('nij, ncj->nci', attentionWeight_twice, feature.flatten(2))
@@ -24,39 +37,47 @@ def attentionWeight_twice_matmul_type1(weight, feature, scale_factor):
 
 try:
     from research.attention_weight_recycle import attention_weight_twice_matmul
-    def attentionWeight_twice_matmul_type1_c(weight, feature, scale_factor):
-        return attention_weight_twice_matmul.attentionWeight_twice_matmul_type1(weight, feature, scale_factor)
+    def attentionWeight_twice_matmul_type1_c(weight, feature):
+        return attention_weight_twice_matmul.attentionWeight_twice_matmul_type1(weight, feature)
 except:
     print("Please run the command: `python setup.py build_ext --inplace`")
 
 
-def attentionWeight_twice_matmul_type2(weight, feature, original_shape):
-    H, W = original_shape
+def attentionWeight_twice_matmul_type2(weight, feature):
     N, Q, K = weight.shape
     N, C, FH, FW = feature.shape
-    SH, SW = FH // H, FW // W
+    H, W = int(math.sqrt(Q)), int(math.sqrt(K))
+    scale_H, scale_W = FH // H, FW // W
 
-    feature = feature.reshape(N, C, H, SH, W, SW).permute(0, 1, 3, 5, 2, 4).reshape(N, C, SH * SW, H*W).permute(0, 1, 3, 2)
+    feature = feature.reshape(N, C, H, scale_H, W, scale_W).permute(0, 1, 3, 5, 2, 4).reshape(N, C, scale_H * scale_W, H*W).permute(0, 1, 3, 2)
     result = torch.matmul(weight.reshape(N,1,Q,K), feature)
     result = result.sum(axis=3)
-    result = result.reshape(N, C, H, 1, W, 1).repeat(1, 1, 1, SH, 1, SW).reshape(N, C, H * SH, W * SW)
+    result = result.reshape(N, C, H, 1, W, 1).repeat(1, 1, 1, scale_H, 1, scale_W).reshape(N, C, H * scale_H, W * scale_W)
     return result
 
 
-def attentionWeight_twice_matmul_type3(weight, feature, original_shape):
+def attentionWeight_twice_matmul_type3(weight, feature):
     """
     Current best implementation
     """
-    H, W = original_shape
+    
     N, Q, K = weight.shape
     N, C, FH, FW = feature.shape
-    SH, SW = FH // H, FW // W
+    H, W = int(math.sqrt(Q)), int(math.sqrt(K))
+    sclae_H, sacle_W = FH // H, FW // W
 
-    feature = feature.reshape(N, C, H, SH, W, SW).permute(0, 1, 3, 5, 2, 4).reshape(N, C, SH * SW, H*W).permute(0, 1, 3, 2)
+    feature = feature.reshape(N, C, H, sclae_H, W, sacle_W).permute(0, 1, 3, 5, 2, 4).reshape(N, C, sclae_H * sacle_W, H*W).permute(0, 1, 3, 2)
     result = torch.einsum('nij, ncjq->nciq', weight, feature)
     result = result.sum(axis=3)
-    result = result.reshape(N, C, H, 1, W, 1).repeat(1, 1, 1, SH, 1, SW).reshape(N, C, H * SH, W * SW)
+    result = result.reshape(N, C, H, 1, W, 1).repeat(1, 1, 1, sclae_H, 1, sacle_W).reshape(N, C, H * sclae_H, W * sacle_W)
     return result
+
+try:
+    from research.attention_weight_recycle import attention_weight_twice_matmul
+    def attentionWeight_twice_matmul_type3_c(weight, feature):
+        return attention_weight_twice_matmul.attentionWeight_twice_matmul_type3(weight, feature)
+except:
+    print("Please run the command: `python setup.py build_ext --inplace`")
 
 
 def TransformerEncoderLayer_forward(self, src, src_mask=None, pos_embed=None) -> torch.Tensor:
@@ -109,9 +130,8 @@ class HybridEncoder1(HybridEncoder):
                 # print([x.is_contiguous() for x in proj_feats ])
 
         # attention weight recycle
-        original_shape = (proj_feats[2].shape[2], proj_feats[2].shape[3])
-        proj_feats[1] = self.b1(proj_feats[1] + attentionWeight_twice_matmul_type3(_, proj_feats[1], original_shape))
-        proj_feats[0] = self.b2(proj_feats[0] + attentionWeight_twice_matmul_type3(_, proj_feats[0], original_shape))
+        proj_feats[1] = self.b1(proj_feats[1] + attentionWeight_twice_matmul_type3(_, proj_feats[1]))
+        proj_feats[0] = self.b2(proj_feats[0] + attentionWeight_twice_matmul_type3(_, proj_feats[0]))
 
 
         # broadcasting and fusion
@@ -149,12 +169,10 @@ class attentionWeightRecycle(nn.Module):
         self.b2 = nn.LayerNorm(hidden_dim)
 
     def forward(self, weight, feature, original_shape):
-
-        residual = feature.reshape(feature.shape[0], feature.shape[1], feature.shape[2]*feature.shape[3]).transpose(1, 2)
+        residual = BCHW_to_BHWC(feature)
         x = attentionWeight_twice_matmul_type3(weight, feature, original_shape)
-        x = x.reshape(x.shape[0], x.shape[1], x.shape[2]*x.shape[3]).transpose(1, 2)
+        x = BCHW_to_BHWC(x)
         x = self.b1(residual + self.dropout1(x))
-
 
         residual = x
         x = self.linear2(self.dropout2(self.ac(self.linear1(x))))
@@ -190,11 +208,10 @@ class HybridEncoder2(HybridEncoder):
                 # print([x.is_contiguous() for x in proj_feats ])
 
         # attention weight recycle
-        original_shape = (proj_feats[2].shape[2], proj_feats[2].shape[3])
-        proj_feats[1] = self.s4attenRecycle(_, proj_feats[1], original_shape)
-        proj_feats[1] = proj_feats[1].permute(0,2,1).reshape(-1, self.hidden_dim, original_shape[0] * 2 , original_shape[1] * 2)
-        proj_feats[0] = self.s5attenRecycle(_, proj_feats[0], original_shape)
-        proj_feats[0] = proj_feats[0].permute(0,2,1).reshape(-1, self.hidden_dim, original_shape[0] * 4 , original_shape[1] * 4)
+        proj_feats[1] = self.s4attenRecycle(_, proj_feats[1])
+        proj_feats[1] = BHWC_to_BCHW(proj_feats[1])
+        proj_feats[0] = self.s5attenRecycle(_, proj_feats[0])
+        proj_feats[0] = BHWC_to_BCHW(proj_feats[0])
 
         # broadcasting and fusion
         inner_outs = [proj_feats[-1]]
