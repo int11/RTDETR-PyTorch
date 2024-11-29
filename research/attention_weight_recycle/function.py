@@ -6,14 +6,14 @@ import torch.nn as nn
 
 
 def BCHW_to_BHWC(data):
-    N, HxW, C = data.shape
-    H = W = int(math.sqrt(HxW))
-    return data.permute(0, 2, 1).reshape(N, C, H, W).contiguous()
+    N, C, H, W = data.shape
+    return data.permute(0, 2, 3, 1).reshape(N, H*W, C).contiguous()
 
 
 def BHWC_to_BCHW(data):
-    N, C, H, W = data.shape
-    return data.permute(0, 2, 3, 1).reshape(N, H*W, C).contiguous()
+    N, HxW, C = data.shape
+    H = W = int(math.sqrt(HxW))
+    return data.permute(0, 2, 1).reshape(N, C, H, W).contiguous()
 
 
 def attentionWeight_twice_matmul_type1(weight, feature):
@@ -64,12 +64,12 @@ def attentionWeight_twice_matmul_type3(weight, feature):
     N, Q, K = weight.shape
     N, C, FH, FW = feature.shape
     H, W = int(math.sqrt(Q)), int(math.sqrt(K))
-    sclae_H, sacle_W = FH // H, FW // W
+    scale_H, scale_W = FH // H, FW // W
 
-    feature = feature.reshape(N, C, H, sclae_H, W, sacle_W).permute(0, 1, 3, 5, 2, 4).reshape(N, C, sclae_H * sacle_W, H*W).permute(0, 1, 3, 2)
+    feature = feature.reshape(N, C, H, scale_H, W, scale_W).permute(0, 1, 3, 5, 2, 4).reshape(N, C, scale_H * scale_W, H*W).permute(0, 1, 3, 2)
     result = torch.einsum('nij, ncjq->nciq', weight, feature)
     result = result.sum(axis=3)
-    result = result.reshape(N, C, H, 1, W, 1).repeat(1, 1, 1, sclae_H, 1, sacle_W).reshape(N, C, H * sclae_H, W * sacle_W)
+    result = result.reshape(N, C, H, 1, W, 1).repeat(1, 1, 1, scale_H, 1, scale_W).reshape(N, C, H * scale_H, W * scale_W)
     return result
 
 try:
