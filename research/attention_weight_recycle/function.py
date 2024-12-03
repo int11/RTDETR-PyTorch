@@ -35,14 +35,6 @@ def attentionWeight_twice_matmul_type1(weight, feature):
     return result
 
 
-try:
-    from research.attention_weight_recycle import attention_weight_twice_matmul
-    def attentionWeight_twice_matmul_type1_c(weight, feature):
-        return attention_weight_twice_matmul.attentionWeight_twice_matmul_type1(weight, feature)
-except:
-    print("Please run the command: `python setup.py build_ext --inplace`")
-
-
 def attentionWeight_twice_matmul_type2(weight, feature):
     N, Q, K = weight.shape
     N, C, FH, FW = feature.shape
@@ -72,13 +64,17 @@ def attentionWeight_twice_matmul_type3(weight, feature):
     result = result.reshape(N, C, H, 1, W, 1).repeat(1, 1, 1, scale_H, 1, scale_W).reshape(N, C, H * scale_H, W * scale_W)
     return result
 
+
 try:
     from research.attention_weight_recycle import attention_weight_twice_matmul
+    def attentionWeight_twice_matmul_type1_c(weight, feature):
+        return attention_weight_twice_matmul.attentionWeight_twice_matmul_type1(weight, feature)
+    
     def attentionWeight_twice_matmul_type3_c(weight, feature):
         return attention_weight_twice_matmul.attentionWeight_twice_matmul_type3(weight, feature)
 except:
     print("Please run the command: `python setup.py build_ext --inplace`")
-
+    
 
 def TransformerEncoderLayer_forward(self, src, src_mask=None, pos_embed=None) -> torch.Tensor:
     residual = src
