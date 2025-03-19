@@ -1,18 +1,23 @@
+"""
+Copyright (c) 2025 int11. All Rights Reserved.
+"""
+
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from src import zoo
 from utils import fit, val, str2bool
 from src.data.coco.coco_dataset import CocoDetection
-from src.misc import dist
-from src.data.dataloader import DataLoader
+from src.misc import dist_utils
+from src.data.dataloader import DataLoader, BatchImageCollateFuncion
 import argparse
 
 
 def main():
     args = parser.parse_args()
 
-    dist.init_distributed()
+
+    dist_utils.init_distributed()
     
     model = getattr(zoo.model, args.model_type)()
     optimizer = getattr(zoo.optimizer, args.model_type)(model)
@@ -22,7 +27,8 @@ def main():
         img_folder=os.path.join(args.dataset_dir, "val2017"),
         ann_file=os.path.join(args.dataset_dir, "annotations/instances_val2017.json"), 
         dataset_class=CocoDetection)
-    val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False, drop_last=False)
+    val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False, drop_last=False, 
+                                collate_fn=BatchImageCollateFuncion())
 
     if args.val:
         val(model=model, 
@@ -33,8 +39,9 @@ def main():
     else:
         train_dataset = zoo.coco_train_dataset(
             img_folder=os.path.join(args.dataset_dir, "train2017"),
-            ann_file=os.path.join(args.dataset_dir, "annotations/instances_train2017.json"))
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
+            ann_file=os.path.join(args.dataset_dir, "annotations/instances_train2017.json"), range_num=500)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True, 
+                                      collate_fn=BatchImageCollateFuncion(scales=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800], stop_epoch=71))
         fit(
             model=model, 
             weight_path=args.weight_path,

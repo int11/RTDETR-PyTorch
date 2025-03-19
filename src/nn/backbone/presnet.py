@@ -1,5 +1,7 @@
-'''by lyuwenyu
-'''
+"""
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
+"""
+
 import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
@@ -7,9 +9,6 @@ import torch.nn.functional as F
 from collections import OrderedDict
 
 from .common import get_activation, ConvNormLayer, FrozenBatchNorm2d
-
-
-__all__ = ['PResNet']
 
 
 ResNet_cfg = {

@@ -1,4 +1,5 @@
-"""by lyuwenyu
+"""
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 import torch 
@@ -63,41 +64,20 @@ def get_contrastive_denoising_training_group(targets,
         new_label = torch.randint_like(mask, 0, num_classes, dtype=input_query_class.dtype)
         input_query_class = torch.where(mask & pad_gt_mask, new_label, input_query_class)
 
-    # if label_noise_ratio > 0:
-    #     input_query_class = input_query_class.flatten()
-    #     pad_gt_mask = pad_gt_mask.flatten()
-    #     # half of bbox prob
-    #     # mask = torch.rand(input_query_class.shape, device=device) < (label_noise_ratio * 0.5)
-    #     mask = torch.rand_like(input_query_class) < (label_noise_ratio * 0.5)
-    #     chosen_idx = torch.nonzero(mask * pad_gt_mask).squeeze(-1)
-    #     # randomly put a new one here
-    #     new_label = torch.randint_like(chosen_idx, 0, num_classes, dtype=input_query_class.dtype)
-    #     # input_query_class.scatter_(dim=0, index=chosen_idx, value=new_label)
-    #     input_query_class[chosen_idx] = new_label
-    #     input_query_class = input_query_class.reshape(bs, num_denoising)
-    #     pad_gt_mask = pad_gt_mask.reshape(bs, num_denoising)
-
     if box_noise_scale > 0:
         known_bbox = box_cxcywh_to_xyxy(input_query_bbox)
         diff = torch.tile(input_query_bbox[..., 2:] * 0.5, [1, 1, 2]) * box_noise_scale
         rand_sign = torch.randint_like(input_query_bbox, 0, 2) * 2.0 - 1.0
         rand_part = torch.rand_like(input_query_bbox)
         rand_part = (rand_part + 1.0) * negative_gt_mask + rand_part * (1 - negative_gt_mask)
-        rand_part *= rand_sign
-        known_bbox += rand_part * diff
-        known_bbox.clip_(min=0.0, max=1.0)
+        known_bbox += (rand_sign * rand_part * diff)
+        known_bbox = torch.clip(known_bbox, min=0.0, max=1.0)
         input_query_bbox = box_xyxy_to_cxcywh(known_bbox)
-        input_query_bbox = inverse_sigmoid(input_query_bbox)
+        input_query_bbox_unact = inverse_sigmoid(input_query_bbox)
 
-    # class_embed = torch.concat([class_embed, torch.zeros([1, class_embed.shape[-1]], device=device)])
-    # input_query_class = torch.gather(
-    #     class_embed, input_query_class.flatten(),
-    #     axis=0).reshape(bs, num_denoising, -1)
-    # input_query_class = class_embed(input_query_class.flatten()).reshape(bs, num_denoising, -1)
-    input_query_class = class_embed(input_query_class)
+    input_query_logits = class_embed(input_query_class)
 
     tgt_size = num_denoising + num_queries
-    # attn_mask = torch.ones([tgt_size, tgt_size], device=device) < 0
     attn_mask = torch.full([tgt_size, tgt_size], False, dtype=torch.bool, device=device)
     # match query cannot see the reconstruction
     attn_mask[num_denoising:, :num_denoising] = True
@@ -122,4 +102,4 @@ def get_contrastive_denoising_training_group(targets,
     # print(input_query_bbox.shape) # torch.Size([4, 196, 4])
     # print(attn_mask.shape) # torch.Size([496, 496])
     
-    return input_query_class, input_query_bbox, attn_mask, dn_meta
+    return input_query_logits, input_query_bbox_unact, attn_mask, dn_meta

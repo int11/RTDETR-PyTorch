@@ -1,81 +1,100 @@
 """
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-
-COCO dataset which returns image_id for evaluation.
+Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 Mostly copy-paste from https://github.com/pytorch/vision/blob/13b35ff/references/detection/coco_utils.py
+
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
+Copyright (c) 2025 int11. All Rights Reserved.
 """
 
-from io import BytesIO
-from PIL import Image
-import os.path
-import requests
 import torch
 import torch.utils.data
 
 import torchvision
-import multiprocessing as mp
-from src.data.utils import TorchSerializedList
+
+from PIL import Image
+import faster_coco_eval
+import faster_coco_eval.core.mask as coco_mask
+from ..utils import convert_to_tv_tensor
+
+
 torchvision.disable_beta_transforms_warning()
-
-from torchvision import datapoints
-
-from pycocotools import mask as coco_mask
-
-from pycocotools.coco import COCO
-
-__all__ = ['CocoDetection', 'CocoDetection_share_memory']
-
+faster_coco_eval.init_as_pycocotools()
+Image.MAX_IMAGE_PIXELS = None
 
 class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, transforms, return_masks, remap_mscoco_category=False):
+    def __init__(self, img_folder, ann_file, transforms, return_masks=False, remap_mscoco_category=False):
         super(CocoDetection, self).__init__(img_folder, ann_file)
-        os.makedirs(self.root, exist_ok=True)
         self._transforms = transforms
-        self.prepare = ConvertCocoPolysToMask(return_masks, remap_mscoco_category)
+        self.prepare = ConvertCocoPolysToMask(return_masks)
         self.img_folder = img_folder
         self.ann_file = ann_file
         self.return_masks = return_masks
         self.remap_mscoco_category = remap_mscoco_category
 
     def __getitem__(self, idx):
+        img, target = self.load_item(idx)
+        if self._transforms is not None:
+            img, target, _ = self._transforms(img, target, self)
+        return img, target
+
+    def load_item(self, idx):
+        image, target = super(CocoDetection, self).__getitem__(idx)
         image_id = self.ids[idx]
-        
-        img_info = self.coco.loadImgs(image_id)[0]
-        img_full_path = os.path.join(self.root, img_info["file_name"])
-
-        img = Image.open(img_full_path).convert("RGB")
-
-        target = self._load_target(image_id)
         target = {'image_id': image_id, 'annotations': target}
 
-        img, target = self.prepare(img, target)
+        if self.remap_mscoco_category:
+            image, target = self.prepare(image, target, category2label=mscoco_category2label)
+        else:
+            image, target = self.prepare(image, target)
 
-        # ['boxes', 'masks', 'labels']:
+        target['idx'] = torch.tensor([idx])
+
         if 'boxes' in target:
-            target['boxes'] = datapoints.BoundingBox(
-                target['boxes'], 
-                format=datapoints.BoundingBoxFormat.XYXY, 
-                spatial_size=img.size[::-1]) # h w
+            target['boxes'] = convert_to_tv_tensor(target['boxes'], key='boxes', spatial_size=image.size[::-1])
 
         if 'masks' in target:
-            target['masks'] = datapoints.Mask(target['masks'])
+            target['masks'] = convert_to_tv_tensor(target['masks'], key='masks')
 
-        if self._transforms is not None:
-            img, target = self._transforms(img, target)
-            
-        return img, target
+        return image, target
 
     def extra_repr(self) -> str:
         s = f' img_folder: {self.img_folder}\n ann_file: {self.ann_file}\n'
         s += f' return_masks: {self.return_masks}\n'
         if hasattr(self, '_transforms') and self._transforms is not None:
             s += f' transforms:\n   {repr(self._transforms)}'
+        if hasattr(self, '_preset') and self._preset is not None:
+            s += f' preset:\n   {repr(self._preset)}'
+        return s
 
-        return s 
+    @property
+    def categories(self, ):
+        return self.coco.dataset['categories']
+
+    @property
+    def category2name(self, ):
+        return {cat['id']: cat['name'] for cat in self.categories}
+
+    @property
+    def category2label(self, ):
+        return {cat['id']: i for i, cat in enumerate(self.categories)}
+
+    @property
+    def label2category(self, ):
+        return {i: cat['id'] for i, cat in enumerate(self.categories)}
+
+    @property
+    def epoch(self):
+        return self._epoch if hasattr(self, '_epoch') else -1
+    
+
+import multiprocessing as mp
+from src.data.utils import TorchSerializedList
+from pycocotools.coco import COCO
+import os
 
 
 class CocoDetection_share_memory(torchvision.datasets.VisionDataset):
-    def __init__(self, img_folder, ann_file, transforms, return_masks, remap_mscoco_category=False, share_memory=True):
+    def __init__(self, img_folder, ann_file, transforms, return_masks=False, remap_mscoco_category=False, share_memory=True):
         super(CocoDetection_share_memory, self).__init__(img_folder)
 
         coco = COCO(ann_file)
@@ -90,7 +109,7 @@ class CocoDetection_share_memory(torchvision.datasets.VisionDataset):
 
         self._transforms = transforms
         os.makedirs(self.root, exist_ok=True)
-        self.prepare = ConvertCocoPolysToMask(return_masks, remap_mscoco_category)
+        self.prepare = ConvertCocoPolysToMask(return_masks)
         self.img_folder = img_folder
         self.ann_file = ann_file
         self.return_masks = return_masks
@@ -107,39 +126,36 @@ class CocoDetection_share_memory(torchvision.datasets.VisionDataset):
         return  self.anns[idx]
     
     def __getitem__(self, idx):
-        img = self._load_image(idx)
+        image = self._load_image(idx)
         target = self._load_target(idx)
 
         target = {'image_id': self.imgs_info[idx]['id'], 'annotations': target}
 
-        img, target = self.prepare(img, target)
+        image, target = self.prepare(image, target, category2label=mscoco_category2label) if self.remap_mscoco_category else self.prepare(image, target)
 
-        # ['boxes', 'masks', 'labels']:
         if 'boxes' in target:
-            target['boxes'] = datapoints.BoundingBox(
-                target['boxes'], 
-                format=datapoints.BoundingBoxFormat.XYXY, 
-                spatial_size=img.size[::-1]) # h w
+            target['boxes'] = convert_to_tv_tensor(target['boxes'], key='boxes', spatial_size=image.size[::-1])
 
         if 'masks' in target:
-            target['masks'] = datapoints.Mask(target['masks'])
+            target['masks'] = convert_to_tv_tensor(target['masks'], key='masks')
 
         if self._transforms is not None:
-            img, target = self._transforms(img, target)
+            image, target, _ = self._transforms(image, target, self)
             
-        return img, target
+        return image, target
     
     def extra_repr(self) -> str:
         s = f' img_folder: {self.img_folder}\n ann_file: {self.ann_file}\n'
         s += f' return_masks: {self.return_masks}\n'
         if hasattr(self, '_transforms') and self._transforms is not None:
             s += f' transforms:\n   {repr(self._transforms)}'
-
-        return s 
+        if hasattr(self, '_preset') and self._preset is not None:
+            s += f' preset:\n   {repr(self._preset)}'
+        return s
     
     def __len__(self) -> int:
         return len(self.imgs_info)
-
+    
 
 def convert_coco_poly_to_mask(segmentations, height, width):
     masks = []
@@ -159,11 +175,10 @@ def convert_coco_poly_to_mask(segmentations, height, width):
 
 
 class ConvertCocoPolysToMask(object):
-    def __init__(self, return_masks=False, remap_mscoco_category=False):
+    def __init__(self, return_masks=False):
         self.return_masks = return_masks
-        self.remap_mscoco_category = remap_mscoco_category
 
-    def __call__(self, image, target):
+    def __call__(self, image: Image.Image, target, **kwargs):
         w, h = image.size
 
         image_id = target["image_id"]
@@ -180,12 +195,13 @@ class ConvertCocoPolysToMask(object):
         boxes[:, 0::2].clamp_(min=0, max=w)
         boxes[:, 1::2].clamp_(min=0, max=h)
 
-        if self.remap_mscoco_category:
-            classes = [mscoco_category2label[obj["category_id"]] for obj in anno]
+        category2label = kwargs.get('category2label', None)
+        if category2label is not None:
+            labels = [category2label[obj["category_id"]] for obj in anno]
         else:
-            classes = [obj["category_id"] for obj in anno]
-            
-        classes = torch.tensor(classes, dtype=torch.int64)
+            labels = [obj["category_id"] for obj in anno]
+
+        labels = torch.tensor(labels, dtype=torch.int64)
 
         if self.return_masks:
             segmentations = [obj["segmentation"] for obj in anno]
@@ -201,7 +217,7 @@ class ConvertCocoPolysToMask(object):
 
         keep = (boxes[:, 3] > boxes[:, 1]) & (boxes[:, 2] > boxes[:, 0])
         boxes = boxes[keep]
-        classes = classes[keep]
+        labels = labels[keep]
         if self.return_masks:
             masks = masks[keep]
         if keypoints is not None:
@@ -209,7 +225,7 @@ class ConvertCocoPolysToMask(object):
 
         target = {}
         target["boxes"] = boxes
-        target["labels"] = classes
+        target["labels"] = labels
         if self.return_masks:
             target["masks"] = masks
         target["image_id"] = image_id
@@ -223,8 +239,8 @@ class ConvertCocoPolysToMask(object):
         target["iscrowd"] = iscrowd[keep]
 
         target["orig_size"] = torch.as_tensor([int(w), int(h)])
-        target["size"] = torch.as_tensor([int(w), int(h)])
-    
+        # target["size"] = torch.as_tensor([int(w), int(h)])
+
         return image, target
 
 

@@ -1,3 +1,6 @@
+"""
+Copyright (c) 2025 int11. All Rights Reserved.
+"""
 
 from src.nn.rtdetr.hybrid_encoder import HybridEncoder
 from src.nn.rtdetr.rtdetr import RTDETR
@@ -63,7 +66,7 @@ def r50vd_decoder(
         hidden_dim=256,
         num_levels=3,
         num_queries=300,
-        num_decoder_layers=6,
+        num_layers=6,
         num_denoising=100,
         eval_idx=-1,
         eval_spatial_size=[640, 640]):
@@ -74,7 +77,7 @@ def r50vd_decoder(
         hidden_dim=hidden_dim,
         num_levels=num_levels,
         num_queries=num_queries,
-        num_decoder_layers=num_decoder_layers,
+        num_layers=num_layers,
         num_denoising=num_denoising,
         eval_idx=eval_idx,
         eval_spatial_size=eval_spatial_size)
@@ -88,8 +91,7 @@ def r50vd():
     model = RTDETR(
         backbone=backbone,
         encoder=encoder,
-        decoder=decoder,
-        multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+        decoder=decoder
     )
 
     return model
@@ -98,13 +100,12 @@ def r50vd():
 def r18vd():
     backbone = r50vd_backbone(depth=18, freeze_at=-1, freeze_norm=False)
     encoder = r50vd_encoder(in_channels=[128, 256, 512], expansion=0.5)
-    decoder = r50vd_decoder(num_decoder_layers=3)
+    decoder = r50vd_decoder(num_layers=3)
     
     model = RTDETR(
         backbone=backbone,
         encoder=encoder,
-        decoder=decoder,
-        multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+        decoder=decoder
     )
 
     return model
@@ -113,13 +114,12 @@ def r18vd():
 def r34vd():
     backbone = r50vd_backbone(depth=34, freeze_at=-1, freeze_norm=False)
     encoder = r50vd_encoder(in_channels=[128, 256, 512], expansion=0.5)
-    decoder = r50vd_decoder(num_decoder_layers=4)
+    decoder = r50vd_decoder(num_layers=4)
 
     model = RTDETR(
         backbone=backbone,
         encoder=encoder,
-        decoder=decoder,
-        multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+        decoder=decoder
     )
 
     return model
@@ -133,8 +133,7 @@ def r50vd_m():
     model = RTDETR(
         backbone=backbone,
         encoder=encoder,
-        decoder=decoder,
-        multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+        decoder=decoder
     )
 
     return model
@@ -148,8 +147,7 @@ def r101vd():
     model = RTDETR(
         backbone=backbone,
         encoder=encoder,
-        decoder=decoder,
-        multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+        decoder=decoder
     )
 
     return model

@@ -1,11 +1,13 @@
+"""
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
+"""
+
+
 import torch 
-import torch.nn as nn 
+import torch.nn as nn
 
 
-__all__ = ['Classification', 'ClassHead']
-
-
-class Classification(nn.Module):
+class Classification(torch.nn.Module):
     def __init__(self, backbone: nn.Module, head: nn.Module=None):
         super().__init__()
         

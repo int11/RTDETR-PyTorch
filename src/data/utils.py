@@ -1,6 +1,17 @@
+"""
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
+Copyright (c) 2025 int11. All Rights Reserved.
+"""
+
 import pickle
 import numpy as np
 import torch
+import importlib.metadata
+from torch import Tensor
+from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Mask
+
+
+_boxes_keys = ['format', 'canvas_size']
 
 
 class NumpySerializedList():
@@ -41,3 +52,23 @@ class TorchSerializedList(NumpySerializedList):
         end_addr = self._addr[idx].item()
         bytes = memoryview(self._lst[start_addr:end_addr].numpy())
         return pickle.loads(bytes)
+
+
+def convert_to_tv_tensor(tensor: Tensor, key: str, box_format='xyxy', spatial_size=None) -> Tensor:
+    """
+    Args:
+        tensor (Tensor): input tensor
+        key (str): transform to key
+
+    Return:
+        Dict[str, TV_Tensor]
+    """
+    assert key in ('boxes', 'masks', ), "Only support 'boxes' and 'masks'"
+
+    if key == 'boxes':
+        box_format = getattr(BoundingBoxFormat, box_format.upper())
+        _kwargs = dict(zip(_boxes_keys, [box_format, spatial_size]))
+        return BoundingBoxes(tensor, **_kwargs)
+
+    if key == 'masks':
+       return Mask(tensor)

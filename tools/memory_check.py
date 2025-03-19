@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2025 int11. All Rights Reserved.
+"""
+
 from collections import defaultdict
 import psutil
 from tabulate import tabulate

@@ -1,10 +1,10 @@
-torch==2.0.1
-torchvision==0.15.2
+torch>=2.0.1
+torchvision>=0.17
 onnx==1.14.0
 onnxruntime==1.15.1
 pycocotools
 PyYAML
 scipy
-numpy<2
 psutil
 tabulate
+faster-coco-eval>=1.6.5

@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2025 int11. All Rights Reserved.
+"""
+
 from src.optim.optim import AdamW
 import torch.nn as nn
 import re

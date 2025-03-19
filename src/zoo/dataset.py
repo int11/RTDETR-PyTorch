@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2025 int11. All Rights Reserved.
+"""
+
 import torch
 from src.data.coco.coco_dataset import CocoDetection_share_memory
 from src.data import transforms as T
@@ -16,16 +20,12 @@ def coco_train_dataset(
         transforms = T.Compose([T.RandomPhotometricDistort(p=0.5), 
                                 T.RandomZoomOut(fill=0), 
                                 T.RandomIoUCrop(p=0.8),
-                                T.SanitizeBoundingBox(min_size=1),
+                                T.SanitizeBoundingBoxes(min_size=1),
                                 T.RandomHorizontalFlip(),
                                 T.Resize(size=[640, 640]),
-                                # transforms.Resize(size=639, max_size=640),
-                                # # transforms.PadToSize(spatial_size=640),
-                                T.ToImageTensor(),
-                                T.ConvertDtype(),
-                                T.SanitizeBoundingBox(min_size=1),
-                                T.ConvertBox(out_fmt='cxcywh', normalize=True)]),
-        return_masks=False,
+                                T.SanitizeBoundingBoxes(min_size=1),
+                                T.ConvertPILImage(dtype='float32', scale=True),
+                                T.ConvertBoxes(fmt='cxcywh', normalize=True)]),
         remap_mscoco_category=True, 
         **kwargs)
     
@@ -46,9 +46,7 @@ def coco_val_dataset(
         img_folder=img_folder,
         ann_file=ann_file,
         transforms=T.Compose([T.Resize(size=[640, 640]), 
-                                T.ToImageTensor(), 
-                                T.ConvertDtype()]),
-        return_masks=False,
+                              T.ConvertPILImage(dtype='float32', scale=True)]),
         remap_mscoco_category=True,
         **kwargs)
     

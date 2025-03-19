@@ -1,5 +1,7 @@
-""""by lyuwenyu
 """
+"Copyright (c) 2023 lyuwenyu. All Rights Reserved.
+"""
+
 
 import torch
 import torch.utils.data
@@ -9,7 +11,6 @@ torchvision.disable_beta_transforms_warning()
 
 import PIL 
 
-__all__ = ['show_sample']
 
 def show_sample(sample):
     """for coco dataset/dataloader

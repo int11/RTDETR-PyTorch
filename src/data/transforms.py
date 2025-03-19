@@ -1,22 +1,24 @@
-""""by lyuwenyu
+"""
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 
-import torch 
-import torch.nn as nn 
+import torch
 
 import torchvision
 torchvision.disable_beta_transforms_warning()
-from torchvision import datapoints
 
 import torchvision.transforms.v2 as T
 import torchvision.transforms.v2.functional as F
 
+import PIL
+import PIL.Image
 
-from PIL import Image 
 from typing import Any, Dict, List, Optional
 
-from torchvision.transforms.v2 import Compose, RandomPhotometricDistort, RandomZoomOut, RandomHorizontalFlip, Resize, ToImageTensor, ConvertDtype, SanitizeBoundingBox, RandomCrop, Normalize
+from .utils import convert_to_tv_tensor, _boxes_keys
+from torchvision.tv_tensors import Image, Video, Mask, BoundingBoxes
+from torchvision.transforms.v2 import Compose, RandomPhotometricDistort, RandomZoomOut, RandomHorizontalFlip, Resize, RandomCrop, Normalize, SanitizeBoundingBoxes
 
 
 class EmptyTransform(T.Transform):
@@ -30,23 +32,22 @@ class EmptyTransform(T.Transform):
 
 class PadToSize(T.Pad):
     _transformed_types = (
-        Image.Image,
-        datapoints.Image,
-        datapoints.Video,
-        datapoints.Mask,
-        datapoints.BoundingBox,
+        PIL.Image.Image,
+        Image,
+        Video,
+        Mask,
+        BoundingBoxes,
     )
-    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
-        sz = F.get_spatial_size(flat_inputs[0])
-        h, w = self.spatial_size[0] - sz[0], self.spatial_size[1] - sz[1]
+    def make_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
+        sp = F.get_spatial_size(flat_inputs[0])
+        h, w = self.size[1] - sp[0], self.size[0] - sp[1]
         self.padding = [0, 0, w, h]
         return dict(padding=self.padding)
 
-    def __init__(self, spatial_size, fill=0, padding_mode='constant') -> None:
-        if isinstance(spatial_size, int):
-            spatial_size = (spatial_size, spatial_size)
-        
-        self.spatial_size = spatial_size
+    def __init__(self, size, fill=0, padding_mode='constant') -> None:
+        if isinstance(size, int):
+            size = (size, size)
+        self.size = size
         super().__init__(0, fill, padding_mode)
 
     def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:        
@@ -73,29 +74,45 @@ class RandomIoUCrop(T.RandomIoUCrop):
         return super().forward(*inputs)
 
 
-class ConvertBox(T.Transform):
+class ConvertBoxes(T.Transform):
     _transformed_types = (
-        datapoints.BoundingBox,
+        BoundingBoxes,
     )
-    def __init__(self, out_fmt='', normalize=False) -> None:
+    def __init__(self, fmt='', normalize=False) -> None:
         super().__init__()
-        self.out_fmt = out_fmt
+        self.fmt = fmt
         self.normalize = normalize
 
-        self.data_fmt = {
-            'xyxy': datapoints.BoundingBoxFormat.XYXY,
-            'cxcywh': datapoints.BoundingBoxFormat.CXCYWH
-        }
-
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:  
-        if self.out_fmt:
-            spatial_size = inpt.spatial_size
+    def transform(self, inpt: Any, params: Dict[str, Any]) -> Any:  
+        spatial_size = getattr(inpt, _boxes_keys[1])
+        if self.fmt:
             in_fmt = inpt.format.value.lower()
-            inpt = torchvision.ops.box_convert(inpt, in_fmt=in_fmt, out_fmt=self.out_fmt)
-            inpt = datapoints.BoundingBox(inpt, format=self.data_fmt[self.out_fmt], spatial_size=spatial_size)
-        
+            inpt = torchvision.ops.box_convert(inpt, in_fmt=in_fmt, out_fmt=self.fmt.lower())
+            inpt = convert_to_tv_tensor(inpt, key='boxes', box_format=self.fmt.upper(), spatial_size=spatial_size)
+            
         if self.normalize:
-            inpt = inpt / torch.tensor(inpt.spatial_size[::-1]).tile(2)[None]
+            inpt = inpt / torch.tensor(spatial_size[::-1]).tile(2)[None]
 
         return inpt
 
+
+class ConvertPILImage(T.Transform):
+    _transformed_types = (
+        PIL.Image.Image,
+    )
+    def __init__(self, dtype='float32', scale=True) -> None:
+        super().__init__()
+        self.dtype = dtype
+        self.scale = scale
+
+    def transform(self, inpt: Any, params: Dict[str, Any]) -> Any:  
+        inpt = F.pil_to_tensor(inpt)
+        if self.dtype == 'float32':
+            inpt = inpt.float()
+
+        if self.scale:
+            inpt = inpt / 255.
+
+        inpt = Image(inpt)
+
+        return inpt

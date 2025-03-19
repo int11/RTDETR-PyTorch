@@ -1,3 +1,6 @@
+"""
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
+"""
 
 from .coco import *
 from .cifar10 import CIFAR10

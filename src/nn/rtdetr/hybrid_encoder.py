@@ -1,16 +1,15 @@
-'''by lyuwenyu
-'''
+"""
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
+"""
 
 import copy
+from collections import OrderedDict
+
 import torch 
 import torch.nn as nn 
 import torch.nn.functional as F 
 
 from .utils import get_activation
-
-
-__all__ = ['HybridEncoder']
-
 
 
 class ConvNormLayer(nn.Module):
@@ -54,8 +53,6 @@ class RepVggBlock(nn.Module):
         kernel, bias = self.get_equivalent_kernel_bias()
         self.conv.weight.data = kernel
         self.conv.bias.data = bias 
-        # self.__delattr__('conv1')
-        # self.__delattr__('conv2')
 
     def get_equivalent_kernel_bias(self):
         kernel3x3, bias3x3 = self._fuse_bn_tensor(self.conv1)
@@ -177,6 +174,7 @@ class TransformerEncoder(nn.Module):
         return output
 
 
+
 class HybridEncoder(nn.Module):
     def __init__(self,
                  in_channels=[512, 1024, 2048],
@@ -192,7 +190,8 @@ class HybridEncoder(nn.Module):
                  expansion=1.0,
                  depth_mult=1.0,
                  act='silu',
-                 eval_spatial_size=None):
+                 eval_spatial_size=None, 
+                 version='v2'):
         super().__init__()
         self.in_channels = in_channels
         self.feat_strides = feat_strides
@@ -200,20 +199,17 @@ class HybridEncoder(nn.Module):
         self.use_encoder_idx = use_encoder_idx
         self.num_encoder_layers = num_encoder_layers
         self.pe_temperature = pe_temperature
-        self.eval_spatial_size = eval_spatial_size
-
+        self.eval_spatial_size = eval_spatial_size        
         self.out_channels = [hidden_dim for _ in range(len(in_channels))]
         self.out_strides = feat_strides
         
         # channel projection
         self.input_proj = nn.ModuleList()
         for in_channel in in_channels:
-            self.input_proj.append(
-                nn.Sequential(
-                    nn.Conv2d(in_channel, hidden_dim, kernel_size=1, bias=False),
-                    nn.BatchNorm2d(hidden_dim)
-                )
-            )
+            proj = nn.Sequential(
+                nn.Conv2d(in_channel, hidden_dim, kernel_size=1, bias=False),
+                nn.BatchNorm2d(hidden_dim))
+            self.input_proj.append(proj)
 
         # encoder transformer
         encoder_layer = TransformerEncoderLayer(
@@ -261,8 +257,8 @@ class HybridEncoder(nn.Module):
 
     @staticmethod
     def build_2d_sincos_position_embedding(w, h, embed_dim=256, temperature=10000.):
-        '''
-        '''
+        """
+        """
         grid_w = torch.arange(int(w), dtype=torch.float32)
         grid_h = torch.arange(int(h), dtype=torch.float32)
         grid_w, grid_h = torch.meshgrid(grid_w, grid_h, indexing='ij')
@@ -293,27 +289,26 @@ class HybridEncoder(nn.Module):
                 else:
                     pos_embed = getattr(self, f'pos_embed{enc_ind}', None).to(src_flatten.device)
 
-                memory = self.encoder[i](src_flatten, pos_embed=pos_embed)
+                memory :torch.Tensor = self.encoder[i](src_flatten, pos_embed=pos_embed)
                 proj_feats[enc_ind] = memory.permute(0, 2, 1).reshape(-1, self.hidden_dim, h, w).contiguous()
-                # print([x.is_contiguous() for x in proj_feats ])
 
         # broadcasting and fusion
         inner_outs = [proj_feats[-1]]
         for idx in range(len(self.in_channels) - 1, 0, -1):
-            feat_high = inner_outs[0]
+            feat_heigh = inner_outs[0]
             feat_low = proj_feats[idx - 1]
-            feat_high = self.lateral_convs[len(self.in_channels) - 1 - idx](feat_high)
-            inner_outs[0] = feat_high
-            upsample_feat = F.interpolate(feat_high, scale_factor=2., mode='nearest')
+            feat_heigh = self.lateral_convs[len(self.in_channels) - 1 - idx](feat_heigh)
+            inner_outs[0] = feat_heigh
+            upsample_feat = F.interpolate(feat_heigh, scale_factor=2., mode='nearest')
             inner_out = self.fpn_blocks[len(self.in_channels)-1-idx](torch.concat([upsample_feat, feat_low], dim=1))
             inner_outs.insert(0, inner_out)
 
         outs = [inner_outs[0]]
         for idx in range(len(self.in_channels) - 1):
             feat_low = outs[-1]
-            feat_high = inner_outs[idx + 1]
+            feat_height = inner_outs[idx + 1]
             downsample_feat = self.downsample_convs[idx](feat_low)
-            out = self.pan_blocks[idx](torch.concat([downsample_feat, feat_high], dim=1))
+            out = self.pan_blocks[idx](torch.concat([downsample_feat, feat_height], dim=1))
             outs.append(out)
 
         return outs

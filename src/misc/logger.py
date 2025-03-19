@@ -12,7 +12,7 @@ from typing import Dict
 
 import torch
 import torch.distributed as tdist
-from .dist import is_dist_available_and_initialized, get_world_size
+from .dist_utils import is_dist_available_and_initialized, get_world_size
 
 
 class SmoothedValue(object):

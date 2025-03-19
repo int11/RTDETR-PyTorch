@@ -2,14 +2,15 @@
 Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 Modules to compute the matching cost and solve the corresponding LSAP.
 
-by lyuwenyu
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F 
 
 from scipy.optimize import linear_sum_assignment
-from torch import nn
+from typing import Dict 
 
 from .box_ops import box_cxcywh_to_xyxy, generalized_box_iou
 
@@ -42,7 +43,7 @@ class HungarianMatcher(nn.Module):
         assert self.cost_class != 0 or self.cost_bbox != 0 or self.cost_giou != 0, "all costs cant be 0"
 
     @torch.no_grad()
-    def forward(self, outputs, targets):
+    def forward(self, outputs: Dict[str, torch.Tensor], targets):
         """ Performs the matching
 
         Params:
@@ -81,8 +82,8 @@ class HungarianMatcher(nn.Module):
         # The 1 is a constant that doesn't change the matching, it can be ommitted.
         if self.use_focal_loss:
             out_prob = out_prob[:, tgt_ids]
-            neg_cost_class = (1 - self.alpha) * (out_prob**self.gamma) * (-(1 - out_prob + 1e-8).log())
-            pos_cost_class = self.alpha * ((1 - out_prob)**self.gamma) * (-(out_prob + 1e-8).log())
+            neg_cost_class = (1 - self.alpha) * (out_prob ** self.gamma) * (-(1 - out_prob + 1e-8).log())
+            pos_cost_class = self.alpha * ((1 - out_prob) ** self.gamma) * (-(out_prob + 1e-8).log())
             cost_class = pos_cost_class - neg_cost_class        
         else:
             cost_class = -out_prob[:, tgt_ids]
@@ -99,5 +100,6 @@ class HungarianMatcher(nn.Module):
 
         sizes = [len(v["boxes"]) for v in targets]
         indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
+        indices = [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
 
-        return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
+        return {'indices': indices}

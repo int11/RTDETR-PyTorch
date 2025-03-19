@@ -1,4 +1,5 @@
-"""by lyuwenyu
+"""
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 import math
@@ -7,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F 
 import datetime
 import re
-import src.misc.dist as dist
+import src.misc.dist_utils as dist_utils
 from typing import Dict
 import torch.optim.lr_scheduler as lr_scheduler
 
@@ -108,14 +109,14 @@ def load_tuning_state(path, model, ema_model=None):
     """
     state = torch.hub.load_state_dict_from_url(path, map_location='cpu') if 'http' in path else torch.load(path, map_location='cpu')
 
-    infos = dist.de_parallel(model).load_state_dict(state['model'], strict=False)
+    infos = dist_utils.de_parallel(model).load_state_dict(state['model'], strict=False)
     print(f'Load model.state_dict, {infos}')
 
     if 'ema' in state:
         if ema_model is None:
             raise RuntimeError('WARNING, ema model weight exist in file but flag is use_ema=False, skip loading ema model')
         else:
-            infos = dist.de_parallel(ema_model).load_state_dict(state['ema'], strict=False)
+            infos = dist_utils.de_parallel(ema_model).load_state_dict(state['ema'], strict=False)
             print(f'Load ema_model.state_dict, {infos}')
 
     return state['last_epoch']
@@ -125,7 +126,7 @@ def state_dict(last_epoch, model, ema_model=None):
     '''current train info state dict 
     '''
     state = {}
-    state['model'] = dist.de_parallel(model).state_dict()
+    state['model'] = dist_utils.de_parallel(model).state_dict()
     state['date'] = datetime.datetime.now().isoformat()
     state['last_epoch'] = last_epoch
 

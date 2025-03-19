@@ -1,3 +1,6 @@
+"""
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
+"""
 
 import torch 
 import torch.nn as nn 

@@ -1,5 +1,9 @@
+"""
+Copyright (c) 2025 int11. All Rights Reserved.
+"""
+
 from src.nn.rtdetr.matcher import HungarianMatcher
-from src.nn.rtdetr.rtdetr_criterion import SetCriterion
+from src.nn.rtdetr.rtdetr_criterion import RTDETRCriterion
 
 
 def rtdetr_criterion():
@@ -8,7 +12,7 @@ def rtdetr_criterion():
                                alpha=0.25,
                                gamma=2.0)
     
-    criterion = SetCriterion(matcher=matcher,
+    criterion = RTDETRCriterion(matcher=matcher,
                              weight_dict= {'loss_vfl': 1, 'loss_bbox': 5, 'loss_giou': 2},
                              losses= ['vfl', 'boxes'],
                              alpha= 0.75,

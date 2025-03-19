@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2025 int11. All Rights Reserved.
+"""
+
 import argparse
 import os
 import sys
@@ -18,7 +22,7 @@ from src.misc import MetricLogger, SmoothedValue, reduce_dict
 from src.optim.ema import ModelEMA
 from src.nn.rtdetr.rtdetr_postprocessor import RTDETRPostProcessor
 from src.nn.rtdetr.utils import *
-import src.misc.dist as dist
+import src.misc.dist_utils as dist_utils
 
 
 def fit(model, 
@@ -43,16 +47,17 @@ def fit(model,
     if weight_path != None:
         last_epoch = load_tuning_state(weight_path, model, ema_model)
 
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     ema_model.to(device) if use_ema == True else None
     criterion.to(device)  
     
     #dist wrap modeln loader must do after model.to(device)
-    if dist.is_dist_available_and_initialized():
-        train_dataloader = dist.warp_loader(train_dataloader)
-        val_dataloader = dist.warp_loader(val_dataloader)
-        model = dist.warp_model(model, find_unused_parameters=False, sync_bn=True)
+    if dist_utils.is_dist_available_and_initialized():
+        train_dataloader = dist_utils.warp_loader(train_dataloader)
+        val_dataloader = dist_utils.warp_loader(val_dataloader)
+        model = dist_utils.warp_model(model, find_unused_parameters=False, sync_bn=True)
 
     
     print("Start training")
@@ -65,14 +70,14 @@ def fit(model,
     for epoch in range(last_epoch + 1, epoch):
         sys.stdout = Tee(os.path.join(save_dir, f'{epoch}.txt'))
 
-        if dist.is_dist_available_and_initialized():
-            train_dataloader.sampler.set_epoch(epoch)
+        # set dataloader epoch parameter
+        train_dataloader.sampler.set_epoch(epoch) if dist_utils.is_dist_available_and_initialized() else train_dataloader.set_epoch(epoch)
         
         train_one_epoch(model, criterion, train_dataloader, optimizer, device, epoch, max_norm=0.1, print_freq=100, ema=ema_model, scaler=scaler)
 
         lr_scheduler.step()
 
-        dist.save_on_master(state_dict(epoch, model, ema_model), os.path.join(save_dir, f'{epoch}.pth'))
+        dist_utils.save_on_master(state_dict(epoch, model, ema_model), os.path.join(save_dir, f'{epoch}.pth'))
 
         # The val function during training is always use_ema=False flag to skip the logic of fetching ema files
         module = ema_model.module if use_ema == True else model
@@ -166,19 +171,19 @@ def val(model, weight_path, val_dataloader, criterion=None, use_amp=True, use_em
     model.to(device)
     criterion.to(device)
 
-    if dist.is_dist_available_and_initialized():
-        val_dataloader = dist.warp_loader(val_dataloader)
-        model = dist.warp_model(model, find_unused_parameters=False, sync_bn=True)
+    if dist_utils.is_dist_available_and_initialized():
+        val_dataloader = dist_utils.warp_loader(val_dataloader)
+        model = dist_utils.warp_model(model, find_unused_parameters=False, sync_bn=True)
     
     model.eval()
     criterion.eval()
 
     base_ds = get_coco_api_from_dataset(val_dataloader.dataset)
+
     postprocessor = RTDETRPostProcessor(num_top_queries=300, remap_mscoco_category=val_dataloader.dataset.remap_mscoco_category)
-    iou_types = postprocessor.iou_types
-    coco_evaluator = CocoEvaluator(base_ds, iou_types)
+    coco_evaluator = CocoEvaluator(base_ds, ['bbox'])
+    iou_types = coco_evaluator.iou_types
     metric_logger = MetricLogger(val_dataloader, header='Test:',)
-    panoptic_evaluator = None
 
     for samples, targets in metric_logger.log_every():
         samples = samples.to(device)
@@ -199,8 +204,6 @@ def val(model, weight_path, val_dataloader, criterion=None, use_amp=True, use_em
     print("Averaged stats:", metric_logger)
     if coco_evaluator is not None:
         coco_evaluator.synchronize_between_processes()
-    if panoptic_evaluator is not None:
-        panoptic_evaluator.synchronize_between_processes()
 
     if coco_evaluator is not None:
         coco_evaluator.accumulate()
