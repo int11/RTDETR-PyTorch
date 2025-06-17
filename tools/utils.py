@@ -31,14 +31,11 @@ def fit(model,
         save_dir,
         train_dataloader, 
         val_dataloader,
-        criterion=None,
+        criterion,
         epoch=73,
         use_amp=True,
         use_ema=True):
-
-    if criterion == None:
-        criterion = rtdetr_criterion()
-
+    
     scaler = GradScaler() if use_amp == True else None
     ema_model = ModelEMA(model, decay=0.9999, warmups=2000) if use_ema == True else None
     lr_scheduler = lr_schedulers.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
@@ -81,7 +78,7 @@ def fit(model,
 
         # The val function during training is always use_ema=False flag to skip the logic of fetching ema files
         module = ema_model.module if use_ema == True else model
-        test_stats, coco_evaluator = val(model=module, weight_path=None, criterion=criterion, val_dataloader=val_dataloader)
+        test_stats, coco_evaluator = val(model=module, criterion=criterion, val_dataloader=val_dataloader)
 
         sys.stdout.close()
         
@@ -156,10 +153,7 @@ def train_one_epoch(model: torch.nn.Module,
 
 #TODO This function too complex and slow because it from original repository, need to refactor
 @torch.no_grad()
-def val(model, weight_path, val_dataloader, criterion=None, use_amp=True, use_ema=True):
-    if criterion == None:
-        criterion = rtdetr_criterion()
-
+def val(model, weight_path, val_dataloader, criterion, use_amp=True, use_ema=True):
     if weight_path != None:
         state = torch.hub.load_state_dict_from_url(weight_path, map_location='cpu') if 'http' in weight_path else torch.load(weight_path, map_location='cpu')
         if use_ema == True:

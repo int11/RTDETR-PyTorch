@@ -41,45 +41,49 @@ def get_optim_params(params, model: nn.Module):
     return param_groups
 
 
-def rtdetr_optimizer(model, params, lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001):
-    optimizer = AdamW(params=get_optim_params(params, model), lr=lr, betas=betas, weight_decay=weight_decay)
-    return optimizer
+def r18vd(model, lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001):
+    # https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetrv2_pytorch/configs/rtdetr/rtdetr_r18vd_6x_coco.yml
+    params = [
+        {'params': '^(?=.*backbone)(?=.*norm|bn).*$', 'weight_decay': 0., 'lr': 0.00001},
+        {'params': '^(?=.*backbone)(?!.*norm|bn).*$', 'lr': 0.00001},
+        {'params': '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$', 'weight_decay': 0.}
+    ]
+    return AdamW(params=get_optim_params(params, model), lr=lr, betas=betas, weight_decay=weight_decay)
 
 
-def r18vd(model):
-    params= [{'params': '^(?=.*backbone)(?=.*norm).*$', 'lr': 0.00001, 'weight_decay': 0.},
-             {'params': '^(?=.*backbone)(?!.*norm).*$', 'lr': 0.00001},
-             {'params': '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bias)).*$', 'weight_decay': 0.}]
-    
-    return rtdetr_optimizer(model=model, params=params)
-
-def r34vd(model):
-    params = [{'params': '^(?=.*backbone)(?=.*norm|bn).*$', 'weight_decay': 0., 'lr': 0.00001},
-              {'params': '^(?=.*backbone)(?!.*norm|bn).*$', 'lr': 0.00001}, 
-              {'params': '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$', 'weight_decay': 0.}]
-
-    return rtdetr_optimizer(model=model, params=params)
+def r34ad(model, lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001):
+    # https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetrv2_pytorch/configs/rtdetr/rtdetr_r34vd_6x_coco.yml
+    params = [
+        {'params': '^(?=.*backbone)(?=.*norm|bn).*$', 'weight_decay': 0., 'lr': 0.00001},
+        {'params': '^(?=.*backbone)(?!.*norm|bn).*$', 'lr': 0.00001},
+        {'params': '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$', 'weight_decay': 0.}
+    ]
+    return AdamW(params=get_optim_params(params, model), lr=lr, betas=betas, weight_decay=weight_decay)
 
 
-def r50vd(model):
-    params= [{'params': 'backbone', 'lr': 0.00001},
-             {'params': '^(?=.*encoder(?=.*bias|.*norm.*weight)).*$', 'weight_decay': 0.},
-             {'params': '^(?=.*decoder(?=.*bias|.*norm.*weight)).*$', 'weight_decay': 0.}]
-
-    return rtdetr_optimizer(model=model, params=params)
-
-
-def r50vd_m(model):
-    params= [{'params': 'backbone', 'lr': 0.00001},
-             {'params': '^(?=.*encoder(?=.*bias|.*norm.*weight)).*$', 'weight_decay': 0.},
-             {'params': '^(?=.*decoder(?=.*bias|.*norm.*weight)).*$', 'weight_decay': 0.}]
-
-    return rtdetr_optimizer(model=model, params=params)
+def r50vd(model, lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001):
+    # https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetrv2_pytorch/configs/rtdetr/rtdetr_r50vd_6x_coco.yml
+    params = [
+        {'params': '^(?=.*backbone)(?!.*(?:norm|bn)).*$', 'lr': 0.00001},
+        {'params': '^(?=.*backbone)(?=.*(?:norm|bn)).*$', 'weight_decay': 0., 'lr': 0.00001},
+        {'params': '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$', 'weight_decay': 0.}
+    ]
+    return AdamW(params=get_optim_params(params, model), lr=lr, betas=betas, weight_decay=weight_decay)
 
 
-def r101vd(model):
-    params= [{'params': 'backbone', 'lr': 0.00001},
-             {'params': '^(?=.*encoder(?=.*bias|.*norm.*weight)).*$', 'weight_decay': 0.},
-             {'params': '^(?=.*decoder(?=.*bias|.*norm.*weight)).*$', 'weight_decay': 0.}]
+def r50vd_m(model, lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001):
+    # https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetrv2_pytorch/configs/rtdetr/rtdetr_r50vd_m_6x_coco.yml
+    params = [
+        {'params': '^(?=.*backbone)(?!.*norm|bn).*$','lr': 0.00001},
+        {'params': '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$', 'weight_decay': 0.}
+    ]
+    return AdamW(params=get_optim_params(params, model), lr=lr, betas=betas, weight_decay=weight_decay)
 
-    return rtdetr_optimizer(model=model, params=params, lr=0.00001)
+
+def r101vd(model, lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001):
+    # https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetrv2_pytorch/configs/rtdetr/rtdetr_r101vd_6x_coco.yml
+    params = [
+        {'params': '^(?=.*backbone)(?!.*norm|bn).*$','lr': 0.000001},
+        {'params': '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$', 'weight_decay': 0.}
+    ]
+    return AdamW(params=get_optim_params(params, model), lr=lr, betas=betas, weight_decay=weight_decay)

@@ -21,6 +21,7 @@ def main():
     
     model = getattr(zoo.model, args.model_type)()
     optimizer = getattr(zoo.optimizer, args.model_type)(model)
+    criterion = zoo.criterion.rtdetr_criterion()
 
     #TODO There is a slow on a dataset that is not a CocoDetection class, need to fix this
     val_dataset = zoo.coco_val_dataset(
@@ -31,7 +32,8 @@ def main():
                                 collate_fn=BatchImageCollateFuncion())
 
     if args.val:
-        val(model=model, 
+        val(model=model,
+            criterion=criterion,
             weight_path=args.weight_path, 
             val_dataloader=val_dataloader,
             use_amp=args.amp,
@@ -44,6 +46,7 @@ def main():
                                       collate_fn=BatchImageCollateFuncion(scales=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800], stop_epoch=71))
         fit(
             model=model, 
+            criterion=criterion,
             weight_path=args.weight_path,
             optimizer=optimizer, 
             save_dir=args.save_dir, 
