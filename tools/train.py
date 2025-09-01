@@ -95,6 +95,8 @@ def main(args):
         
         if args.weight_path != None:
             last_epoch = load_tuning_state(args.weight_path, model, ema_model, optimizer, lr_scheduler, scaler)
+        else:
+            last_epoch = 0
 
         fit(model=model, 
             criterion=criterion,
