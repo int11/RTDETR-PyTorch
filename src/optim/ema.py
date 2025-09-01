@@ -10,11 +10,7 @@ import math
 from copy import deepcopy
 
 
-
 import src.misc.dist_utils as dist_utils 
-
-
-
 
 
 class ModelEMA(object):
@@ -71,24 +67,6 @@ class ModelEMA(object):
 
     def extra_repr(self) -> str:
         return f'decay={self.decay}, warmups={self.warmups}'
-
-
-
-class ExponentialMovingAverage(torch.optim.swa_utils.AveragedModel):
-    """Maintains moving averages of model parameters using an exponential decay.
-    ``ema_avg = decay * avg_model_param + (1 - decay) * model_param``
-    `torch.optim.swa_utils.AveragedModel <https://pytorch.org/docs/stable/optim.html#custom-averaging-strategies>`_
-    is used to compute the EMA.
-    """
-    def __init__(self, model, decay, device="cpu", use_buffers=True):
-
-        self.decay_fn = lambda x: decay * (1 - math.exp(-x / 2000))  
-        
-        def ema_avg(avg_model_param, model_param, num_averaged):
-            decay = self.decay_fn(num_averaged)
-            return decay * avg_model_param + (1 - decay) * model_param
-
-        super().__init__(model, device, ema_avg, use_buffers=use_buffers)
 
 
 

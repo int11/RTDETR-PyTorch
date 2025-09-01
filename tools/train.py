@@ -4,24 +4,59 @@ Copyright (c) 2025 int11. All Rights Reserved.
 
 import os
 import sys
+
+import torch
+from torch.cuda.amp import GradScaler
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+from src.nn.rtdetr.criterion import RTDETRCriterion
+from src.nn.rtdetr.matcher import HungarianMatcher
+from src.nn.rtdetr.postprocessor import RTDETRPostProcessor
+
 from src import zoo
-from utils import fit, val, str2bool
+from utils import Tee, fit, val, load_tuning_state
 from src.data.coco.coco_dataset import CocoDetection
 from src.misc import dist_utils
 from src.data.dataloader import DataLoader, BatchImageCollateFuncion
-import argparse
+from options import get_args_parser
+import torch.optim.lr_scheduler as lr_schedulers
+from src.optim.ema import ModelEMA
 
 
-def main():
-    args = parser.parse_args()
-
-
-    dist_utils.init_distributed()
-    
+def main(args):
+    # model
     model = getattr(zoo.model, args.model_type)()
+
+    # optimizer
     optimizer = getattr(zoo.optimizer, args.model_type)(model)
-    criterion = zoo.criterion.rtdetr_criterion()
+
+    # loss function
+    matcher = HungarianMatcher(weight_dict={'cost_class': 2, 'cost_bbox': 5, 'cost_giou': 2},
+                               use_focal_loss=args.use_focal_loss,
+                               alpha=0.25,
+                               gamma=2.0)
+    criterion = RTDETRCriterion(matcher=matcher,
+                             weight_dict= {'loss_vfl': 1, 'loss_bbox': 5, 'loss_giou': 2},
+                             losses= ['vfl', 'boxes'],
+                             alpha= 0.75,
+                             gamma= 2.0)
+    
+    # postprocessor
+    postprocessor = RTDETRPostProcessor(
+        num_classes=80,
+        use_focal_loss=args.use_focal_loss,
+        num_top_queries=300,
+        remap_mscoco_category=args.remap_mscoco_category
+    )
+    
+    # amp
+    scaler = GradScaler() if args.amp == True else None
+
+    # ema
+    ema_model = ModelEMA(model, decay=0.9999, warmups=2000) if args.ema == True else None
+
+
+
 
     #TODO There is a slow on a dataset that is not a CocoDetection class, need to fix this
     val_dataset = zoo.coco_val_dataset(
@@ -31,66 +66,56 @@ def main():
     val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False, drop_last=False, 
                                 collate_fn=BatchImageCollateFuncion())
 
-    if args.val:
+    # evaluation
+    if args.val: 
+        if args.weight_path != None:
+            if 'http' in args.weight_path:
+                state = torch.hub.load_state_dict_from_url(args.weight_path, map_location='cpu')
+            else:
+                state = torch.load(args.weight_path, map_location='cpu')
+
+            if args.ema == True:
+                model.load_state_dict(state['ema']['module'], strict=False)
+            else:
+                model.load_state_dict(state['model'], strict=False)
+
         val(model=model,
             criterion=criterion,
-            weight_path=args.weight_path, 
             val_dataloader=val_dataloader,
-            use_amp=args.amp,
-            use_ema=args.ema)
+            postprocessor=postprocessor,
+            scaler=scaler)
+    # train
     else:
         train_dataset = zoo.coco_train_dataset(
             img_folder=os.path.join(args.dataset_dir, "train2017"),
             ann_file=os.path.join(args.dataset_dir, "annotations/instances_train2017.json"))
         train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True, 
                                       collate_fn=BatchImageCollateFuncion(scales=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800], stop_epoch=71))
-        fit(
-            model=model, 
+        lr_scheduler = lr_schedulers.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
+        
+        if args.weight_path != None:
+            last_epoch = load_tuning_state(args.weight_path, model, ema_model, optimizer, lr_scheduler, scaler)
+
+        fit(model=model, 
             criterion=criterion,
-            weight_path=args.weight_path,
             optimizer=optimizer, 
             save_dir=args.save_dir, 
             train_dataloader=train_dataloader, 
-            val_dataloader=val_dataloader, 
-            use_amp=args.amp, 
-            use_ema=args.ema, 
-            epoch=args.epoch)
+            val_dataloader=val_dataloader,
+            lr_scheduler=lr_scheduler,
+            postprocessor=postprocessor,
+            ema_model=ema_model,
+            scaler=scaler,
+            train_epoch=args.epoch,
+            resume_epoch=last_epoch)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--weight_path', '-w', type=str, default=None,
-                        help='path to the weight file (default: None)')
+    parser = get_args_parser()
+    args = parser.parse_args()
 
-    parser.add_argument('--save_dir', '-s', type=str, default='output/rtdetr_r18vd_6x_coco',
-                        help='path to the weight save directory (default: output/rtdetr_r18vd_6x_coco)')
+    dist_utils.init_distributed()
 
-    parser.add_argument('--dataset_dir', type=str, default='dataset/coco',
-                        help='path to the dataset directory (default: dataset/coco)'
-                        'This is the directory that must contains the train2017, val2017, annotations folder')
-
-    parser.add_argument('--batch_size', type=int, default=4,
-                        help='mini-batch size (default: 4), this is the total '
-                         'batch size of all GPUs on the current node when '
-                         'using Data Parallel or Distributed Data Parallel')
-
-    parser.add_argument('--num_workers', type=int, default=0,
-                        help='number of data loading workers (default: 0)')
-
-    parser.add_argument('--val', type=str2bool, default=False,
-                        help='if True, only evaluate the model (default: False)')
-
-    parser.add_argument('--amp', type=str2bool, default=True,
-                        help='When GPU is available, use Automatic Mixed Precision (default: True)')
-    
-    parser.add_argument('--ema', type=str2bool, default=True,
-                        help='Use Exponential Moving Average (default: True)')
-
-    parser.add_argument('--epoch', type=int, default=100,
-                        help='When test-only is False, this is the number of epochs to train (default: 100)')
-
-    parser.add_argument('--model_type', type=str, default='r18vd',
-                        choices=['r18vd', 'r34vd', 'r50vd', 'r50vd_m', 'r101vd'],
-                        help='choose the model type (default: r18vd)')
-
-    main()
+    with Tee(os.path.join(args.save_dir, f'log.txt')):
+        print(args)
+        main(args)

@@ -110,8 +110,8 @@ help='When GPU is available, use Automatic Mixed Precision (default: True)'
 '--ema', type=str2bool, default=True,
 help='Use Exponential Moving Average (default: True)'
 
-'--epoch', type=int, default=100,
-help='When test-only is False, this is the number of epochs to train (default: 100)'
+'--epoch', type=int, default=72,
+help='When test-only is False, this is the number of epochs to train (default: 72)'
 
 '--model_type', type=str, default='r18vd',
 choices=['r18vd', 'r34vd', 'r50vd', 'r50vd_m', 'r101vd'],

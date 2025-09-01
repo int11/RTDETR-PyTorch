@@ -7,10 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F 
 import datetime
-import re
 import src.misc.dist_utils as dist_utils
-from typing import Dict
-import torch.optim.lr_scheduler as lr_scheduler
 
 
 def inverse_sigmoid(x: torch.Tensor, eps: float=1e-5) -> torch.Tensor:
@@ -70,11 +67,17 @@ def bias_init_with_prob(prior_prob=0.01):
 
 
 def get_activation(act: str, inpace: bool=True):
-    '''get activation
-    '''
+    """get activation
+    """
+    if act is None:
+        return nn.Identity()
+
+    elif isinstance(act, nn.Module):
+        return act 
+
     act = act.lower()
     
-    if act == 'silu':
+    if act == 'silu' or act == 'swish':
         m = nn.SiLU()
 
     elif act == 'relu':
@@ -88,12 +91,9 @@ def get_activation(act: str, inpace: bool=True):
     
     elif act == 'gelu':
         m = nn.GELU()
-        
-    elif act is None:
-        m = nn.Identity()
-    
-    elif isinstance(act, nn.Module):
-        m = act
+
+    elif act == 'hardsigmoid':
+        m = nn.Hardsigmoid()
 
     else:
         raise RuntimeError('')  
@@ -101,36 +101,4 @@ def get_activation(act: str, inpace: bool=True):
     if hasattr(m, 'inplace'):
         m.inplace = inpace
     
-    return m 
-
-
-def load_tuning_state(path, model, ema_model=None):
-    """only load model for tuning and skip missed/dismatched keys
-    """
-    state = torch.hub.load_state_dict_from_url(path, map_location='cpu') if 'http' in path else torch.load(path, map_location='cpu')
-
-    infos = dist_utils.de_parallel(model).load_state_dict(state['model'], strict=False)
-    print(f'Load model.state_dict, {infos}')
-
-    if 'ema' in state:
-        if ema_model is None:
-            raise RuntimeError('WARNING, ema model weight exist in file but flag is use_ema=False, skip loading ema model')
-        else:
-            infos = dist_utils.de_parallel(ema_model).load_state_dict(state['ema'], strict=False)
-            print(f'Load ema_model.state_dict, {infos}')
-
-    return state['last_epoch']
-
-
-def state_dict(last_epoch, model, ema_model=None):
-    '''current train info state dict 
-    '''
-    state = {}
-    state['model'] = dist_utils.de_parallel(model).state_dict()
-    state['date'] = datetime.datetime.now().isoformat()
-    state['last_epoch'] = last_epoch
-
-    if ema_model is not None:
-        state['ema'] = ema_model.state_dict()
-
-    return state
+    return m
