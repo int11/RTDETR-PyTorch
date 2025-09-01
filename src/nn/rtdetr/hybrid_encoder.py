@@ -190,8 +190,7 @@ class HybridEncoder(nn.Module):
                  expansion=1.0,
                  depth_mult=1.0,
                  act='silu',
-                 eval_spatial_size=None, 
-                 version='v2'):
+                 eval_spatial_size=None):
         super().__init__()
         self.in_channels = in_channels
         self.feat_strides = feat_strides

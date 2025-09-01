@@ -4,7 +4,7 @@ Copyright (c) 2025 int11. All Rights Reserved.
 
 from src.nn.rtdetr.hybrid_encoder import HybridEncoder
 from src.nn.rtdetr.rtdetr import RTDETR
-from src.nn.rtdetr.rtdetr_decoder import RTDETRTransformer
+from src.nn.rtdetr.decoder import RTDETRTransformer
 from src.nn.backbone.presnet import PResNet
 
 
