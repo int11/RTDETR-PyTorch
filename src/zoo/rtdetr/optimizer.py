@@ -51,7 +51,7 @@ def r18vd(model, lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001):
     return AdamW(params=get_optim_params(params, model), lr=lr, betas=betas, weight_decay=weight_decay)
 
 
-def r34ad(model, lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001):
+def r34vd(model, lr=0.0001, betas=[0.9, 0.999], weight_decay=0.0001):
     # https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetrv2_pytorch/configs/rtdetr/rtdetr_r34vd_6x_coco.yml
     params = [
         {'params': '^(?=.*backbone)(?=.*norm|bn).*$', 'weight_decay': 0., 'lr': 0.00001},

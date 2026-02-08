@@ -1,7 +1,11 @@
 """
 Copyright (c) 2025 int11. All Rights Reserved.
 """
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
+import argparse
 from collections import defaultdict
 import psutil
 from tabulate import tabulate
@@ -13,8 +17,8 @@ import multiprocessing as mp
 
 from multiprocessing import Manager
 from src.zoo import *
-from rtest.utils import *
 from src.data.coco import CocoDetection, CocoDetection_share_memory
+from src.data.dataloader import DataLoader, BatchImageCollateFuncion
 
 """
 testing memory usage of dataloader.
@@ -77,7 +81,7 @@ class MemoryMonitor():
         return res
 
 
-def main(**kwargs):
+def main(args):
     def hook_pid(worker_id):
         pid = os.getpid()
         monitor.pids.append(pid)
@@ -86,13 +90,21 @@ def main(**kwargs):
     monitor = MemoryMonitor()
     monitor.pids = Manager().list(monitor.pids)
 
-    dataset = coco_train_dataset(**kwargs)
+    dataset_class = CocoDetection_share_memory if args.dataset_class == 'CocoDetection_share_memory' else CocoDetection
+    
+    dataset = coco_train_dataset(
+        img_folder=args.img_folder,
+        ann_file=args.ann_file,
+        range_num=args.range_num,
+        dataset_class=dataset_class
+    )
     dataloader = DataLoader(
         dataset=dataset, 
         worker_init_fn=hook_pid,
-        batch_size=32, 
-        num_workers=2,
-        shuffle=False)
+        batch_size=args.batch_size, 
+        num_workers=args.num_workers,
+        shuffle=False,
+        collate_fn=BatchImageCollateFuncion())
 
     t = time.time()
 
@@ -107,7 +119,7 @@ def main(**kwargs):
             print(f"iteration : {i} / {len(dataloader)}, time : {time.time() - t:.3f}")
             t = time.time()
 
-def main2(**kwargs):
+def main2(args):
     def worker(_, dataset: torch.utils.data.Dataset):
         while True:
             for sample in dataset:
@@ -116,7 +128,15 @@ def main2(**kwargs):
     start_method = 'fork'
     mp.set_start_method(start_method)
     monitor = MemoryMonitor()
-    ds = coco_train_dataset(**kwargs)
+    
+    dataset_class = CocoDetection_share_memory if args.dataset_class == 'CocoDetection_share_memory' else CocoDetection
+    
+    ds = coco_train_dataset(
+        img_folder=args.img_folder,
+        ann_file=args.ann_file,
+        range_num=args.range_num,
+        dataset_class=dataset_class
+    )
     print(monitor.table())
     if start_method == "forkserver":
         # Reduce 150M-per-process USS due to "import torch".
@@ -136,6 +156,28 @@ def main2(**kwargs):
         ctx.join()
 
 if __name__ == '__main__':
-    # main(dataset_class=CocoDetection, range_num=30000)
-    # main(dataset_class=CocoDetection_share_memory, share_memory=False, range_num=30000)
-    main(dataset_class=CocoDetection_share_memory, share_memory=True, range_num=30000)
+    parser = argparse.ArgumentParser('Memory Check Tool', add_help=False)
+    
+    # Dataset options
+    parser.add_argument('--dataset_class', type=str, default='CocoDetection_share_memory',
+                        choices=['CocoDetection', 'CocoDetection_share_memory'],
+                        help='Dataset class to use')
+    parser.add_argument('--share_memory', action='store_true', default=True,
+                        help='Enable shared memory for dataset')
+    parser.add_argument('--range_num', type=int, default=30000,
+                        help='Number of samples to use from dataset')
+    
+    # Dataset paths
+    parser.add_argument('--img_folder', type=str, default='datasets/coco/train2017',
+                        help='Path to image folder')
+    parser.add_argument('--ann_file', type=str, default='datasets/coco/annotations/instances_train2017.json',
+                        help='Path to annotation file')
+    
+    # Dataloader options
+    parser.add_argument('--batch_size', type=int, default=32,
+                        help='Batch size for dataloader')
+    parser.add_argument('--num_workers', type=int, default=2,
+                        help='Number of workers for dataloader')
+    args = parser.parse_args()
+
+    main(args)

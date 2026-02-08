@@ -8,8 +8,8 @@ from src.data import transforms as T
 
 
 def coco_train_dataset(
-        img_folder="./dataset/coco/train2017/",
-        ann_file="./dataset/coco/annotations/instances_train2017.json",
+        img_folder,
+        ann_file,
         range_num=None,
         dataset_class=CocoDetection_share_memory,
         **kwargs):
@@ -36,8 +36,8 @@ def coco_train_dataset(
 
 
 def coco_val_dataset(
-        img_folder="./dataset/coco/val2017/",
-        ann_file="./dataset/coco/annotations/instances_val2017.json",
+        img_folder,
+        ann_file,
         range_num=None,
         dataset_class=CocoDetection_share_memory,
         **kwargs):

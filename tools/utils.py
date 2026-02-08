@@ -7,50 +7,38 @@ import os
 import sys
 import time
 import math
-import datetime
+from datetime import datetime, timedelta
 from typing import Iterable
 
 import torch
-from torch.cuda.amp import GradScaler
-import torch.optim.lr_scheduler as lr_schedulers
-import torch.amp 
+from torch.utils.data import DataLoader
 
-from src.zoo import rtdetr_criterion
 from src.data.coco.coco_eval import CocoEvaluator
 from src.data.coco.coco_utils import get_coco_api_from_dataset
 from src.misc import MetricLogger, SmoothedValue, reduce_dict
-from src.optim.ema import ModelEMA
-from src.nn.rtdetr.rtdetr_postprocessor import RTDETRPostProcessor
-from src.nn.rtdetr.utils import *
+
 import src.misc.dist_utils as dist_utils
 
 
-def fit(model, 
-        weight_path, 
-        optimizer, 
-        save_dir,
-        train_dataloader, 
-        val_dataloader,
-        criterion,
-        epoch=73,
-        use_amp=True,
-        use_ema=True):
-    
-    scaler = GradScaler() if use_amp == True else None
-    ema_model = ModelEMA(model, decay=0.9999, warmups=2000) if use_ema == True else None
-    lr_scheduler = lr_schedulers.MultiStepLR(optimizer=optimizer, milestones=[1000], gamma=0.1) 
-
-    last_epoch = 0
-    if weight_path != None:
-        last_epoch = load_tuning_state(weight_path, model, ema_model)
-
+def fit(model: torch.nn.Module, 
+        optimizer: torch.optim.Optimizer, 
+        save_dir: str,
+        train_dataloader: DataLoader, 
+        val_dataloader: DataLoader,
+        criterion: torch.nn.Module,
+        lr_scheduler,
+        postprocessor: torch.nn.Module,
+        ema_model = None,
+        scaler = None,
+        train_epoch: int = 73,
+        resume_epoch: int = 0):
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
-    ema_model.to(device) if use_ema == True else None
+    if ema_model != None: ema_model.to(device) 
     criterion.to(device)  
     
-    #dist wrap modeln loader must do after model.to(device)
+    #dist wrap model loader must do after model.to(device)
     if dist_utils.is_dist_available_and_initialized():
         train_dataloader = dist_utils.warp_loader(train_dataloader)
         val_dataloader = dist_utils.warp_loader(val_dataloader)
@@ -64,26 +52,21 @@ def fit(model,
     start_time = time.time()
     
 
-    for epoch in range(last_epoch + 1, epoch):
-        sys.stdout = Tee(os.path.join(save_dir, f'{epoch}.txt'))
-
+    for train_epoch in range(resume_epoch + 1, train_epoch):
         # set dataloader epoch parameter
-        train_dataloader.sampler.set_epoch(epoch) if dist_utils.is_dist_available_and_initialized() else train_dataloader.set_epoch(epoch)
+        train_dataloader.sampler.set_epoch(train_epoch) if dist_utils.is_dist_available_and_initialized() else train_dataloader.set_epoch(train_epoch)
         
-        train_one_epoch(model, criterion, train_dataloader, optimizer, device, epoch, max_norm=0.1, print_freq=100, ema=ema_model, scaler=scaler)
+        train_one_epoch(model, criterion, train_dataloader, optimizer, device, train_epoch, max_norm=0.1, print_freq=100, ema=ema_model, scaler=scaler)
 
         lr_scheduler.step()
 
-        dist_utils.save_on_master(state_dict(epoch, model, ema_model), os.path.join(save_dir, f'{epoch}.pth'))
+        dist_utils.save_on_master(state_dict(train_epoch, model, ema_model, optimizer, lr_scheduler, scaler), os.path.join(save_dir, f'{train_epoch}.pth'))
 
-        # The val function during training is always use_ema=False flag to skip the logic of fetching ema files
-        module = ema_model.module if use_ema == True else model
-        test_stats, coco_evaluator = val(model=module, criterion=criterion, val_dataloader=val_dataloader)
-
-        sys.stdout.close()
+        module = ema_model.module if ema_model != None else model
+        test_stats, coco_evaluator = val(model=module, criterion=criterion, val_dataloader=val_dataloader, postprocessor=postprocessor)
         
     total_time = time.time() - start_time
-    total_time_str = str(datetime.timedelta(seconds=int(total_time)))
+    total_time_str = str(timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
 
@@ -107,13 +90,14 @@ def train_one_epoch(model: torch.nn.Module,
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
+        with torch.autocast(device_type=device.type, cache_enabled=True, enabled=scaler != None and device.type == 'cuda'):
+            outputs = model(samples, targets)
+        
+        loss_dict = criterion(outputs, targets)
+        loss = sum(loss_dict.values())
+
         #amp
         if scaler != None:
-            with torch.autocast(device_type=device.type, cache_enabled=True, enabled=device.type == 'cuda'):
-                outputs = model(samples, targets)
-            loss_dict = criterion(outputs, targets)
-
-            loss = sum(loss_dict.values())
             scaler.scale(loss).backward()
 
             if max_norm > 0:
@@ -124,17 +108,13 @@ def train_one_epoch(model: torch.nn.Module,
             scaler.update()
             optimizer.zero_grad()
         else:
-            outputs = model(samples, targets)
-            loss_dict = criterion(outputs, targets)
-
-            loss = sum(loss_dict.values())
-            optimizer.zero_grad()
             loss.backward()
             
             if max_norm > 0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
 
             optimizer.step()
+            optimizer.zero_grad()
         
         # ema 
         if ema != None:
@@ -153,13 +133,12 @@ def train_one_epoch(model: torch.nn.Module,
 
 #TODO This function too complex and slow because it from original repository, need to refactor
 @torch.no_grad()
-def val(model, weight_path, val_dataloader, criterion, use_amp=True, use_ema=True):
-    if weight_path != None:
-        state = torch.hub.load_state_dict_from_url(weight_path, map_location='cpu') if 'http' in weight_path else torch.load(weight_path, map_location='cpu')
-        if use_ema == True:
-            model.load_state_dict(state['ema']['module'], strict=False)
-        else:
-            model.load_state_dict(state['model'], strict=False)
+def val(model: torch.nn.Module, 
+        val_dataloader: DataLoader, 
+        criterion: torch.nn.Module, 
+        postprocessor: torch.nn.Module, 
+        scaler=None):
+    
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
@@ -173,17 +152,16 @@ def val(model, weight_path, val_dataloader, criterion, use_amp=True, use_ema=Tru
     criterion.eval()
 
     base_ds = get_coco_api_from_dataset(val_dataloader.dataset)
-
-    postprocessor = RTDETRPostProcessor(num_top_queries=300, remap_mscoco_category=val_dataloader.dataset.remap_mscoco_category)
     coco_evaluator = CocoEvaluator(base_ds, ['bbox'])
     iou_types = coco_evaluator.iou_types
+    
     metric_logger = MetricLogger(val_dataloader, header='Test:',)
 
     for samples, targets in metric_logger.log_every():
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        with torch.autocast(device_type=device.type, enabled=use_amp == True and device.type == 'cuda'):
+        with torch.autocast(device_type=device.type, enabled=scaler != None and device.type == 'cuda'):
             outputs = model(samples)
 
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)        
@@ -228,9 +206,13 @@ def str2bool(v):
 class Tee:
     def __init__(self, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        log_file = open(path, 'w')
-        self.file = log_file
+        self.file = open(path, 'a')
         self.stdout = sys.stdout
+
+    def __enter__(self):
+        sys.stdout = self  # Redirect stdout to this instance
+        print(f"===== Logging session started {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} =====\n")
+        return self
 
     def write(self, obj):
         self.file.write(obj)
@@ -238,11 +220,64 @@ class Tee:
         self.stdout.write(obj)
         self.stdout.flush()
 
-
     def flush(self):
         self.file.flush()
         self.stdout.flush()
 
-    def close(self):
-        sys.stdout = sys.__stdout__  # Restore original stdout
+    def __exit__(self, exc_type, exc_value, traceback):
+        print(f"===== Logging session ended {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} =====\n")
+        sys.stdout = self.stdout  # Restore original stdout
         self.file.close()
+
+
+def load_tuning_state(path, model, ema_model=None, optimizer=None, lr_scheduler=None, scaler=None):
+    """only load model for tuning and skip missed/dismatched keys
+    """
+    state = torch.hub.load_state_dict_from_url(path, map_location='cpu') if 'http' in path else torch.load(path, map_location='cpu')
+
+    infos = dist_utils.de_parallel(model).load_state_dict(state['model'], strict=False)
+    print(f'Load model.state_dict, {infos}')
+
+    if 'ema' in state:
+        if ema_model is None:
+            raise RuntimeError('WARNING, ema model weight exist in file but flag is use_ema=False')
+        else:
+            infos = ema_model.load_state_dict(state['ema'], strict=False)
+            print(f'Load ema_model.state_dict, {infos}')
+
+    if 'optimizer' in state and optimizer is not None:
+        optimizer.load_state_dict(state['optimizer'])
+        print(f'Load optimizer.state_dict')
+
+    if 'lr_scheduler' in state and lr_scheduler is not None:
+        lr_scheduler.load_state_dict(state['lr_scheduler'])
+        print(f'Load lr_scheduler.state_dict')
+
+    if 'scaler' in state and scaler is not None:
+        scaler.load_state_dict(state['scaler'])
+        print(f'Load scaler.state_dict')
+
+    return state['last_epoch']
+
+
+def state_dict(last_epoch, model, ema_model=None, optimizer=None, lr_scheduler=None, scaler=None):
+    '''current train info state dict 
+    '''
+    state = {}
+    state['model'] = dist_utils.de_parallel(model).state_dict()
+    state['date'] = datetime.now().isoformat()
+    state['last_epoch'] = last_epoch
+
+    if ema_model is not None:
+        state['ema'] = ema_model.state_dict()
+
+    if optimizer is not None:
+        state['optimizer'] = optimizer.state_dict()
+
+    if lr_scheduler is not None:
+        state['lr_scheduler'] = lr_scheduler.state_dict()
+
+    if scaler is not None:
+        state['scaler'] = scaler.state_dict()
+
+    return state

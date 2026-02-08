@@ -8,7 +8,7 @@ It make for provides better pytorch code.
 - Don't use YML config files. You only need to look at the code.
 - Check out the model class zoo. [src/zoo/model.py](https://github.com/int11/RT_DETR_Pytorch/blob/main/src/zoo/model.py), [src/zoo/optimizer.py](https://github.com/int11/RT_DETR_Pytorch/blob/main/src/zoo/optimizer.py)
 - Check out the training example [tools/train.py](https://github.com/int11/RT_DETR_Pytorch/blob/main/tools/train.py)
-- In training, coco dataset uses less memory with memory share.
+- In training, coco dataset uses less memory with memory share. [tools/memory_check.py](https://github.com/int11/RTDETR-PyTorch/blob/main/tools/memory_check.py)
 - Check out my personal research and anyone is welcome to contribute. [branch/research](https://github.com/int11/RTDETR-PyTorch/tree/research)
 
 ## Model Zoo
@@ -110,8 +110,8 @@ help='When GPU is available, use Automatic Mixed Precision (default: True)'
 '--ema', type=str2bool, default=True,
 help='Use Exponential Moving Average (default: True)'
 
-'--epoch', type=int, default=100,
-help='When test-only is False, this is the number of epochs to train (default: 100)'
+'--epoch', type=int, default=72,
+help='When test-only is False, this is the number of epochs to train (default: 72)'
 
 '--model_type', type=str, default='r18vd',
 choices=['r18vd', 'r34vd', 'r50vd', 'r50vd_m', 'r101vd'],
